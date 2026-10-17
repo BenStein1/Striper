@@ -1,6 +1,6 @@
 # Build Instructions
 
-This guide covers how to set up the development environment and build Handy from source across different platforms.
+This guide covers how to set up the development environment and build Striper from source across different platforms.
 
 ## Prerequisites
 
@@ -77,8 +77,8 @@ This guide covers how to set up the development environment and build Handy from
 ### 1. Clone the Repository
 
 ```bash
-git clone git@github.com:cjpais/Handy.git
-cd Handy
+git clone git@github.com:BenStein1/Striper.git
+cd Striper
 ```
 
 ### 2. Install Dependencies
@@ -103,28 +103,28 @@ This compiles a release binary and generates platform-specific bundles (deb, rpm
 
 ## Linux Install (from source)
 
-The raw binary (`src-tauri/target/release/handy`) cannot run standalone — it needs Tauri resource files (tray icons, sounds, VAD model) to be co-located at the expected path.
+The raw binary (`src-tauri/target/release/striper`) cannot run standalone — it needs Tauri resource files (tray icons, sounds, VAD model) to be co-located at the expected path.
 
 **Install from the deb bundle** (works on any Linux distro):
 
 ```bash
 cd /tmp
-ar x /path/to/Handy/src-tauri/target/release/bundle/deb/Handy_*_amd64.deb data.tar.gz
+ar x /path/to/Striper/src-tauri/target/release/bundle/deb/Striper_*_amd64.deb data.tar.gz
 tar xzf data.tar.gz
-sudo cp usr/bin/handy /usr/bin/
+sudo cp usr/bin/striper /usr/bin/
 sudo cp -a usr/lib/. /usr/lib/
 sudo cp -r usr/share/icons/hicolor/* /usr/share/icons/hicolor/
-sudo cp usr/share/applications/Handy.desktop /usr/share/applications/
+sudo cp usr/share/applications/Striper.desktop /usr/share/applications/
 ```
 
-The runtime libraries live in the app-private `/usr/lib/Handy/` (on the binary's rpath), so no `ldconfig` step is needed.
+The runtime libraries live in the app-private `/usr/lib/Striper/` (on the binary's rpath), so no `ldconfig` step is needed.
 
 After subsequent rebuilds, copy the binary and any refreshed runtime libraries:
 
 ```bash
-sudo cp src-tauri/target/release/handy /usr/bin/
-sudo mkdir -p /usr/lib/Handy
-sudo cp -a src-tauri/transcribe-libs/. /usr/lib/Handy/
+sudo cp src-tauri/target/release/striper /usr/bin/
+sudo mkdir -p /usr/lib/Striper
+sudo cp -a src-tauri/transcribe-libs/. /usr/lib/Striper/
 ```
 
 Resources only need re-copying if they change upstream (new icons, sounds, models, etc.).
@@ -135,15 +135,15 @@ Resources only need re-copying if they change upstream (new icons, sounds, model
 
 Local builds use the ad-hoc `signingIdentity: "-"`. A rebuild can have a new macOS code
 identity while the old **System Settings > Privacy & Security > Accessibility** entry
-remains visibly enabled, leaving Handy on `Waiting...`.
+remains visibly enabled, leaving Striper on `Waiting...`.
 
-After installing the final bundle at `/Applications/Handy.app`, quit Handy, clear only its
+After installing the final bundle at `/Applications/Striper.app`, quit Striper, clear only its
 stale Accessibility record, then reopen it:
 
 ```bash
-osascript -e 'tell application id "com.pais.handy" to quit' || true
-tccutil reset Accessibility com.pais.handy
-open /Applications/Handy.app
+osascript -e 'tell application id "com.benstein1.striper" to quit' || true
+tccutil reset Accessibility com.benstein1.striper
+open /Applications/Striper.app
 ```
 
 Grant Accessibility again when prompted. This does not reset Microphone or other TCC
@@ -153,14 +153,14 @@ For optional diagnosis, compare the designated requirements of the previous and 
 bundles:
 
 ```bash
-codesign -dr - /path/to/previous/Handy.app 2>&1
-codesign -dr - /Applications/Handy.app 2>&1
+codesign -dr - /path/to/previous/Striper.app 2>&1
+codesign -dr - /Applications/Striper.app 2>&1
 ```
 
 An ad-hoc requirement contains a `cdhash`; a changed requirement confirms the rebuild is
 not covered by the old grant. The reset procedure does not require this check.
 
-See [issue #1618](https://github.com/cjpais/Handy/issues/1618) for the related onboarding
+See [Handy issue #1618](https://github.com/cjpais/Handy/issues/1618) for the related onboarding
 and stale-permission report.
 
 ### AppImage build fails on Arch / rolling-release distros
@@ -170,7 +170,7 @@ and stale-permission report.
 The error from Tauri:
 
 ```
-Bundling Handy_*_amd64.AppImage
+Bundling Striper_*_amd64.AppImage
 failed to bundle project `failed to run linuxdeploy`
 ```
 
@@ -179,7 +179,7 @@ Tauri swallows the real linuxdeploy error. To see it, run linuxdeploy manually:
 ```bash
 cd src-tauri/target/release/bundle/appimage
 ~/.cache/tauri/linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
-  --appdir Handy.AppDir --plugin gtk --output appimage
+  --appdir Striper.AppDir --plugin gtk --output appimage
 ```
 
 **Workaround:** The binary, deb, and rpm bundles all build fine — only the AppImage step fails. To skip it:
@@ -234,7 +234,7 @@ around either case with a short Cargo target directory:
 $env:CARGO_TARGET_DIR = "C:\h"
 
 # Or persist it for all future terminals (note: redirects ALL your
-# Rust projects' build output, not just Handy):
+# Rust projects' build output, not just Striper):
 [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', 'C:\h', 'User')
 ```
 
@@ -243,24 +243,25 @@ Artifacts then land in `C:\h\release\...` instead of the repo's
 it is only picked up by freshly started processes. Then `bun run tauri dev`
 and `bun run tauri build` work normally.
 
-### Windows `tauri build` fails at bundling with `program not found`
+### Unsigned builds and updater artifacts
 
-If the build compiles all the way to `Built application at: ...\handy.exe` and
-then fails with:
+Striper has no code-signing infrastructure yet, so `tauri.conf.json` configures
+no Windows `signCommand` and `bundle.createUpdaterArtifacts` is `false`.
+`bun run tauri build` therefore produces **unsigned** NSIS/MSI installers on
+Windows (SmartScreen will warn on first run) and needs no signing secrets.
 
-```
-Signing C:\...\handy.exe with a custom signing command
-failed to bundle project `program not found`
-```
+To produce updater artifacts (`.sig` files and `latest.json`), generate a key
+pair with `bun run tauri signer generate`, put the public key in
+`plugins.updater.pubkey`, and build with `TAURI_SIGNING_PRIVATE_KEY` (and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) set plus
+`--config '{"bundle":{"createUpdaterArtifacts":true}}'`.
 
-that's the code-signing step: `tauri.conf.json` configures a custom
-`signCommand` (`trusted-signing-cli`, Azure Trusted Signing) that only exists
-in the release CI environment. Local development doesn't need it:
+To compile without bundling at all:
 
 ```powershell
-# Development (no bundling/signing at all):
+# Development (no bundling):
 bun run tauri dev
 
-# Or compile a release binary without the installer/signing step:
+# Or compile a release binary without the installer step:
 bun run tauri build --no-bundle
 ```

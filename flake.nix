@@ -1,5 +1,5 @@
 {
-  description = "Handy - A free, open source, and extensible speech-to-text application that works completely offline";
+  description = "Striper - AI-assisted offline dictation with a conversational correction lane (fork of Handy)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -83,8 +83,8 @@
           };
         in
         {
-          handy = pkgs.rustPlatform.buildRustPackage {
-            pname = "handy";
+          striper = pkgs.rustPlatform.buildRustPackage {
+            pname = "striper";
             inherit version;
             src = self;
 
@@ -175,14 +175,14 @@
 
             meta = {
               description = "A free, open source, and extensible speech-to-text application that works completely offline";
-              homepage = "https://github.com/cjpais/Handy";
+              homepage = "https://github.com/BenStein1/Striper";
               license = lib.licenses.mit;
-              mainProgram = "handy";
+              mainProgram = "striper";
               platforms = supportedSystems;
             };
           };
 
-          default = self.packages.${system}.handy;
+          default = self.packages.${system}.striper;
         }
       );
 
@@ -191,7 +191,7 @@
         { lib, pkgs, ... }:
         {
           imports = [ ./nix/module.nix ];
-          programs.handy.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.handy;
+          programs.striper.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.striper;
         };
 
       # Home-manager module for per-user service
@@ -199,7 +199,7 @@
         { lib, pkgs, ... }:
         {
           imports = [ ./nix/hm-module.nix ];
-          services.handy.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.handy;
+          services.striper.package = lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.striper;
         };
 
       # Development shell for building from source
@@ -237,7 +237,7 @@
             XDG_DATA_DIRS = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.hicolor-icon-theme}/share";
 
             shellHook = ''
-              echo "Handy development environment"
+              echo "Striper development environment"
               bun install
               echo "Run 'bun run tauri dev' to start"
             '';
