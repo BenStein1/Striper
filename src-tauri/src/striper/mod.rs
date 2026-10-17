@@ -12,9 +12,11 @@
 pub mod commands;
 pub mod correction;
 pub mod diagnostics;
+pub mod hands_free;
 mod keys;
 pub mod listener;
 pub mod listener_install;
+mod live_field;
 mod target;
 
 use log::{debug, error, info, warn};
@@ -44,6 +46,9 @@ pub struct StriperState {
     vocabulary: RwLock<Vec<VocabularyEntry>>,
     ledger: Mutex<Ledger>,
     session: Mutex<Option<CorrectionSession>>,
+    /// Corrections applied to live field text, newest last, for "undo that"
+    /// and follow-ups (PLAN.md §9a).
+    live_history: Mutex<Vec<striper_core::live::LiveEdit>>,
     /// A correction is being applied; a second one is refused.
     busy: AtomicBool,
     /// Consecutive LLM failures, and when the interpreter was paused.
@@ -58,6 +63,7 @@ impl StriperState {
             vocabulary: RwLock::new(Vec::new()),
             ledger: Mutex::new(Ledger::new(LedgerConfig::default())),
             session: Mutex::new(None),
+            live_history: Mutex::new(Vec::new()),
             busy: AtomicBool::new(false),
             llm_failures: AtomicU32::new(0),
             llm_paused_until_ms: AtomicU64::new(0),
@@ -123,6 +129,7 @@ pub fn init(app: &AppHandle) {
     app.manage(listener::ListenerResume::default());
     app.manage(listener_install::InstallLock(AtomicBool::new(false)));
     listener::init(app);
+    hands_free::init(app);
 }
 
 fn state(app: &AppHandle) -> Option<Arc<StriperState>> {
@@ -231,6 +238,20 @@ pub fn record_commit(
     target: AppIdentity,
     inserted: bool,
 ) {
+    let settings = crate::settings::get_settings(app);
+    let typed = inserted_text(&settings, final_text);
+    record_commit_exact(app, raw_text, &typed, target, inserted);
+}
+
+/// Like [`record_commit`], for text inserted exactly as given (the
+/// hands-free session adds no trailing space).
+pub fn record_commit_exact(
+    app: &AppHandle,
+    raw_text: &str,
+    typed_text: &str,
+    target: AppIdentity,
+    inserted: bool,
+) {
     let Some(state) = state(app) else {
         return;
     };
@@ -251,7 +272,7 @@ pub fn record_commit(
         at_ms: now_ms(),
         target,
         raw_text: raw_text.to_string(),
-        inserted_text: inserted_text(&settings, final_text),
+        inserted_text: typed_text.to_string(),
         editable,
     });
     drop(ledger);

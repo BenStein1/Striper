@@ -173,6 +173,8 @@ const settingUpdaters: {
     commands.changeCorrectionReasoningEffortSetting(value as string | null),
   correction_llm_enabled: (value) =>
     commands.changeCorrectionLlmEnabledSetting(value as boolean),
+  hands_free_shortcut: (value) =>
+    commands.changeHandsFreeShortcutSetting(value as boolean),
   correction_require_readback: (value) =>
     commands.changeCorrectionRequireReadbackSetting(value as boolean),
   log_level: (value) => commands.setLogLevel(value as any),

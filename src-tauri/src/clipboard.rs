@@ -757,6 +757,24 @@ fn should_send_auto_submit(auto_submit: bool, paste_method: PasteMethod) -> bool
 
 pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     let settings = get_settings(&app_handle);
+    paste_with_settings(text, app_handle, settings)
+}
+
+/// Paste exactly `text`: no trailing space and no auto-submit Enter. The
+/// hands-free session joins utterances itself and must never press Enter
+/// after each one.
+pub fn paste_exact(text: String, app_handle: AppHandle) -> Result<(), String> {
+    let mut settings = get_settings(&app_handle);
+    settings.append_trailing_space = false;
+    settings.auto_submit = false;
+    paste_with_settings(text, app_handle, settings)
+}
+
+fn paste_with_settings(
+    text: String,
+    app_handle: AppHandle,
+    settings: crate::settings::AppSettings,
+) -> Result<(), String> {
     let paste_method = settings.paste_method;
     let paste_delay_ms = settings.paste_delay_ms;
     let paste_delay_after_ms = settings.paste_delay_after_ms;

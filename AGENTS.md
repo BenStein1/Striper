@@ -173,14 +173,15 @@ Striper supports command-line parameters on all platforms for integration with s
 
 **Implementation:** `cli.rs` (definitions), `main.rs` (parsing), `lib.rs` (applying), `signal_handle.rs` (shared logic)
 
-| Flag                     | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
-| `--toggle-transcription` | Toggle recording on/off on a running instance              |
-| `--toggle-post-process`  | Toggle recording with post-processing on/off               |
-| `--cancel`               | Cancel the current operation on a running instance         |
-| `--start-hidden`         | Launch without showing the main window (tray icon visible) |
-| `--no-tray`              | Launch without system tray (closing window quits the app)  |
-| `--debug`                | Enable debug mode with verbose (Trace) logging             |
+| Flag                         | Description                                                    |
+| ---------------------------- | -------------------------------------------------------------- |
+| `--toggle-transcription`     | Toggle recording on/off on a running instance                  |
+| `--toggle-post-process`      | Toggle recording with post-processing on/off                   |
+| `--toggle-dictation-session` | Start/end a hands-free dictation session on a running instance |
+| `--cancel`                   | Cancel the current operation on a running instance             |
+| `--start-hidden`             | Launch without showing the main window (tray icon visible)     |
+| `--no-tray`                  | Launch without system tray (closing window quits the app)      |
+| `--debug`                    | Enable debug mode with verbose (Trace) logging                 |
 
 **Key design decisions:**
 

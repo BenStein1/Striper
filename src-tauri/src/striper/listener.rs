@@ -110,7 +110,10 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut last_focus_probe: Option<Instant> = None;
     let mut cached_target: Option<AppIdentity> = None;
     loop {
-        let enabled = get_settings(app).correction_listener_enabled;
+        // A hands-free session owns the microphone and hears "correct that"
+        // itself; the wake listener stands down meanwhile.
+        let enabled =
+            get_settings(app).correction_listener_enabled && !super::hands_free::is_active(app);
         if rm.cancel_generation() != cancel_generation {
             cancel_generation = rm.cancel_generation();
             rm.stop_listener_capture();

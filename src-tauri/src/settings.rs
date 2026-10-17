@@ -560,6 +560,10 @@ pub struct AppSettings {
     /// Explicit opt-in to local, CPU-only background wake detection.
     #[serde(default)]
     pub correction_listener_enabled: bool,
+    /// Ctrl+Space (the transcribe shortcut) toggles a hands-free dictation
+    /// session instead of push-to-talk (PLAN.md §5a).
+    #[serde(default)]
+    pub hands_free_shortcut: bool,
 }
 
 fn default_model() -> String {
@@ -1077,6 +1081,7 @@ pub fn get_default_settings() -> AppSettings {
         correction_reasoning_effort: None,
         correction_require_readback: true,
         correction_listener_enabled: false,
+        hands_free_shortcut: false,
     }
 }
 

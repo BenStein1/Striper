@@ -788,6 +788,26 @@
           "realFieldTest": "Start with a disposable document in Kate or another plain-text editor. Test dictation, correction, undo, switching windows, and preserved clipboard contents. A VM can test guest behavior; host hotkeys, audio passthrough, and GPU behavior need separate checks."
         }
       }
+    },
+    "dictationSession": {
+      "title": "Hands-free dictation",
+      "description": "Start once, then just talk. Text appears when you pause. Say “mute” to pause, “unmute” to continue, “new paragraph” for a break, and “correct that” to fix something.",
+      "start": "Start dictation",
+      "end": "End dictation",
+      "state": {
+        "off": "Off",
+        "listening": "Listening",
+        "paused": "Paused"
+      },
+      "hint": {
+        "off": "Click the button or press your dictation shortcut to start.",
+        "listening": "Speak normally. Say “mute” on its own to pause.",
+        "paused": "Not listening to anything except “unmute”. Nothing you say is typed or sent."
+      },
+      "shortcut": {
+        "label": "Dictation shortcut starts and ends hands-free dictation",
+        "description": "Press the dictation shortcut (Ctrl+Space) once to start and once to end, instead of holding it while you talk."
+      }
     }
   },
   "footer": {

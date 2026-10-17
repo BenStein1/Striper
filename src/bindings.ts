@@ -946,6 +946,52 @@ async isLaptop() : Promise<Result<boolean, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getCorrectionCapabilities() : Promise<Result<CorrectionCapabilities, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_correction_capabilities") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCorrectionListenerStatus() : Promise<Result<ListenerStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_correction_listener_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getDictationSessionStatus() : Promise<DictationSessionStatus> {
+    return await TAURI_INVOKE("get_dictation_session_status");
+},
+async toggleDictationSession() : Promise<DictationSessionStatus> {
+    return await TAURI_INVOKE("toggle_dictation_session");
+},
+async changeHandsFreeShortcutSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_hands_free_shortcut_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeCorrectionListenerEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_correction_listener_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async installCorrectionListener() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_correction_listener") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getLearnedVocabulary() : Promise<Result<LearnedEntry[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_learned_vocabulary") };
@@ -1022,21 +1068,39 @@ async changeLearnedVocabularyEnabledSetting(enabled: boolean) : Promise<Result<n
     else return { status: "error", error: e  as any };
 }
 },
-async changeCorrectionReasoningEffortSetting(effort: string | null): Promise<Result<null, string>> {
-    try { return { status: "ok", data: await TAURI_INVOKE("change_correction_reasoning_effort_setting", { effort }) }; }
-    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
-},
-async testCorrectionAi(): Promise<Result<string, string>> {
-    try { return { status: "ok", data: await TAURI_INVOKE("test_correction_ai") }; }
-    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
-},
-async useLunaCorrectionPreset(): Promise<Result<null, string>> {
-    try { return { status: "ok", data: await TAURI_INVOKE("use_luna_correction_preset") }; }
-    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
-},
 async changeCorrectionLlmEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_correction_llm_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeCorrectionReasoningEffortSetting(effort: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_correction_reasoning_effort_setting", { effort }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Configure the requested model without changing or exposing any API keys.
+ */
+async useLunaCorrectionPreset() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("use_luna_correction_preset") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Exercise the real provider with synthetic text; never touch a desktop target.
+ */
+async testCorrectionAi() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("test_correction_ai") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1150,8 +1214,7 @@ overlay_style?: OverlayStyle;
  */
 learned_vocabulary_enabled?: boolean; 
 /**
- * Lane B: send instructions the local parser does not recognise to the
- * configured LLM provider.
+ * Lane B: use AI for natural-language edits when configured.
  */
 correction_llm_enabled?: boolean; 
 /**
@@ -1163,17 +1226,33 @@ correction_provider_id?: string | null;
  * Model for correction instructions; `None` uses the provider's
  * post-processing model.
  */
-correction_model?: string | null;
-correction_reasoning_effort?: string | null;
+correction_model?: string | null; 
+/**
+ * None uses the provider default; explicit effort must be honored.
+ */
+correction_reasoning_effort?: string | null; 
 /**
  * Refuse to edit text whose selection cannot be read back (PLAN.md §9).
  * Turning this off allows unverified edits on desktops where the
  * clipboard cannot be read (some Wayland setups).
  */
-correction_require_readback?: boolean; correction_listener_enabled?: boolean }
+correction_require_readback?: boolean; 
+/**
+ * Explicit opt-in to local, CPU-only background wake detection.
+ */
+correction_listener_enabled?: boolean; 
+/**
+ * Ctrl+Space (the transcribe shortcut) toggles a hands-free dictation
+ * session instead of push-to-talk (PLAN.md §5a).
+ */
+hands_free_shortcut?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
-export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[]; active_backend: string | null; active_device: string | null; active_on_gpu: boolean | null }
+export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[]; 
+/**
+ * Runtime facts from the loaded worker, not the requested preference.
+ */
+active_backend: string | null; active_device: string | null; active_on_gpu: boolean | null }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 /**
  * Script applied to Mandarin and Cantonese output. Other languages are never
@@ -1185,8 +1264,18 @@ export type ChineseScript =
  */
 "as_transcribed" | "simplified" | "traditional"
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
+export type CorrectionCapabilities = { os: string; session: string; desktop: string; focus_source: string; window_observable: boolean; input_backend: string; readback_required: boolean; listener_supported: boolean; tools: ToolAvailability[]; 
+/**
+ * Stable translation keys; never expose document titles/window handles.
+ */
+guidance: string[] }
 export type CorrectionRecord = { id: number; timestamp: number; app_id: string | null; operation: string; instruction: string; before_text: string; after_text: string; result: string; interpreter: string }
 export type CustomSounds = { start: boolean; stop: boolean }
+export type DictationSessionStatus = { 
+/**
+ * "off", "listening" or "paused".
+ */
+state: string; error: string | null }
 export type GpuDeviceOption = { id: string; name: string; backend: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
@@ -1222,6 +1311,7 @@ export type LearnedEntryUpdate = { preferred_text: string | null; aliases: strin
  * `Some("")` clears the app scope.
  */
 app_scope: string | null; enabled: boolean | null; use_as_asr_hint: boolean | null }
+export type ListenerStatus = { installed: boolean; enabled: boolean; phase: string; error: string | null }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
@@ -1370,6 +1460,7 @@ export type StreamWorkKind = "transcribing" | "polishing"
  * and `Dark` force one of the two palettes Handy already ships.
  */
 export type Theme = "system" | "light" | "dark"
+export type ToolAvailability = { name: string; installed: boolean }
 export type TranscribeAcceleratorSetting = "auto" | "cpu" | "gpu"
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type VadBackend = "silero" | "earshot"

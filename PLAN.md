@@ -26,9 +26,10 @@ _Last updated October 17, 2026. "Tested" means automated tests on Linux (and Win
 | Persistent memory only when the user says "remember", stored in SQLite with audit log | Done, tested | §0 acceptance test passes in core tests; needs a real restart on Windows |
 | Vocabulary manager UI, import/export, recent corrections, overlay feedback | Done | Lint and build pass; not yet viewed on screen |
 | Wake phrase "correct that" (CPU detector) | Implemented, desktop validation pending | Opt-in native Vosk listener; shared capture; selected ASR for instructions; synthetic Linux acoustic probe passed |
-| Hands-free dictation session (Ctrl+Space toggle, Listening / Paused / Off, "mute"/"unmute", "new paragraph") | In progress | See §5a; core state machine first, then app wiring |
-| Live-text source of truth for "correct that" (read field, plan, verify unchanged, apply) | In progress | See §9a; platform trait first, then Windows UIA adapter |
-| Windows UI Automation / Word adapter | In progress | UIA TextPattern / ValuePattern read adapter behind the live-text trait (§9a); Word-specific adapter later |
+| Hands-free dictation session (Ctrl+Space toggle, Listening / Paused / Off, "mute"/"unmute", "new paragraph") | Implemented, core and endpointing tested | §5a. `striper-core::dictation` (16 tests), `src-tauri/src/striper/hands_free.rs` (VAD endpointing tests), big Start/End button on General, `--toggle-dictation-session`. Needs a real microphone, then Windows. Paused listener is VAD + duration gate + local ASR; the Vosk "unmute" grammar is not wired yet |
+| Paragraph corrections ("new paragraph after …", "split into paragraphs") | Done, tested in core | `insert_paragraph_breaks` operation changes whitespace only; local parser and AI prompt both produce it |
+| Live-text source of truth for "correct that" (read field, plan, verify unchanged, apply) | Implemented, tested against a simulated field | §9a. `striper-core::live` (14 tests): re-plans once if the field changed, verifies selection and result, restores the caret, live undo/follow-ups. Used whenever the platform can read the field; otherwise the ledger path |
+| Windows UI Automation / Word adapter | UIA reader implemented, type-checked only | `crates/striper-platform/src/live_text_windows.rs`: TextPattern text/selection/caret, ValuePattern fallback, password refusal, verified range selection. Needs Windows (Notepad, Word, Edge). Word-specific adapter later |
 | Linux AT-SPI live-text adapter (KDE) | Not started | §9a fallback order applies until it exists |
 | Data migration from Handy's `com.pais.handy` app-data folder | Implemented, unit-tested | Fresh installations import settings and completed models without changing Handy or overwriting Striper |
 | Updater signing keys for Striper | Not started | Update checks default off |
@@ -278,7 +279,7 @@ Illustrative command result **(contract proposal, not existing Handy API)**:
 }
 ```
 
-Allowed operations: `replace_text`, `replace_punctuation`, `insert_text`, `insert_paragraph_break`, `set_paragraphs` (whitespace-only restructuring, §5a), `delete_recent_dictation`, `undo_last_edit`, `remember_spelling`, `forget_spelling`, `clarify`, `cancel`, `finish`.
+Allowed operations: `replace_text`, `replace_punctuation`, `insert_text`, `insert_paragraph_breaks` (whitespace-only restructuring, §5a), `delete_recent_dictation`, `undo_last_edit`, `remember_spelling`, `forget_spelling`, `clarify`, `cancel`, `finish`.
 
 **Hard constraints:**
 

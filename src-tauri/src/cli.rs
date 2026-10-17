@@ -26,6 +26,11 @@ pub struct CliArgs {
     #[arg(long)]
     pub toggle_correction: bool,
 
+    /// Start or end a hands-free dictation session (sent to running
+    /// instance): Listening until toggled again, "mute"/"unmute" by voice.
+    #[arg(long)]
+    pub toggle_dictation_session: bool,
+
     /// Cancel the current operation (sent to running instance)
     #[arg(long)]
     pub cancel: bool,

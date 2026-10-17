@@ -44,6 +44,31 @@ Open **Vocabulary → Voice correction**, click **Download local listener files*
 
 Synthetic 16 kHz speech probes triggered the actual Linux Vosk library for a standalone wake and a one-breath instruction. The narrow CPU decoder also confused “connect that cable” with a wake candidate; the independent selected-ASR prefix check rejects that transcript. The core has 91 tests, the listener crate has 4, and coordinator tests cover rejecting ambient work while busy. This is not a microphone/accent false-activation benchmark. Real Windows microphone, foreground field, clipboard, follow-up timing, and installer setup still need the actual desktop. Do not label those acceptance gates passed from CI alone.
 
+## October 17 continuation: Dad's hands-free session and live-text corrections
+
+Spec: PLAN.md §5a (session), §9a (live text is the source of truth), milestone M3a.
+
+- **Session core** — `striper-core::dictation::HandsFreeSession`: Off / Listening / Paused. "mute"/"unmute" count only as the whole utterance with ≥400 ms silence on both sides; while Paused everything except "unmute" is `Discard`, and utterances over 2 s are never transcribed. "correct that …" at the start of an utterance routes to Lane B (alone, the next utterance is the instruction). `apply_spoken_formatting` turns "new paragraph"/"new line" into breaks; `join_utterance` spaces and capitalizes across utterances.
+- **Session app glue** — `src-tauri/src/striper/hands_free.rs`. A segmenter thread takes idle mic frames through `start_listener_capture` (same recorder as PTT), runs the selected VAD per frame and cuts utterances at 700 ms of silence (90 ms onset, 300 ms pre-roll, 25 s cap). A worker thread transcribes them in order with the selected recognizer, asks the core what they mean, and pastes with `clipboard::paste_exact` (no trailing space, never auto-submit) followed by `record_commit_exact`. The wake listener stands down while a session runs. Off stops capture.
+- **Controls** — General page: large Start/End dictation button with Listening/Paused/Off text, plus the setting "Dictation shortcut starts and ends hands-free dictation" (`hands_free_shortcut`; off by default so Handy's push-to-talk is unchanged). `--toggle-dictation-session` for scripts. Sounds: Start on Listening, Stop on Paused, two Stops on Off. Overlay messages on every change.
+- **Paragraph corrections** — new `insert_paragraph_breaks { after: [...] }` operation (command schema, validation, resolver, prompt, local parser for "new paragraph after X"). It only replaces the whitespace after each anchor with a blank line (`\r\n` kept where the field uses it).
+- **Live text** — `striper-core::live`: `LiveField` trait, `context_window` (2,400 chars around the caret, mostly before it), `plan` (resolve against what the interpreter saw), `apply` (re-read; refuse if changed; select, read back, replace, verify, undo on mismatch, restore caret), `run` (re-plans once after a concurrent change), `undo`/`plan_undo`. `SimulatedLiveField` for tests.
+- **Platform** — `striper-platform::live_text`: `read_focused_text` / `select_range`. Windows uses UI Automation (`live_text_windows.rs`; TextPattern + TextPattern2 caret, ValuePattern fallback for Edit/Document/ComboBox, password → refused, selection moves corrected by reading the range back). Linux returns `Unsupported` until AT-SPI exists.
+- **Correction routing** — `correction::handle_instruction_guarded` reads the live field first. If readable and selectable it runs `handle_live` (live prompt via `build_live_user_message`, live undo history in `StriperState::live_history`; "scratch that" and undo-without-live-history fall back to the ledger). Protected fields are refused. Anything else uses the unchanged ledger path, so Linux behaves as before.
+
+### Verified here (Linux container)
+
+- striper-core: 123 tests pass, clippy `-D warnings` clean. striper-platform: tests pass; Windows code `cargo check`/`clippy --target x86_64-pc-windows-gnu` clean.
+- src-tauri: `cargo check`, clippy (no new warnings in Striper code), `cargo test --lib striper::` (endpointer tests) pass. Bindings regenerated.
+- Frontend: lint, build, prettier, translations pass. New strings are English in every locale.
+
+### Needs Ben's machine / Windows
+
+- Everything audible or on screen: endpointing timings with a real mic, Whisper hallucinations on noise, sounds, overlay, the button's look.
+- UIA adapter has never run: test reading and selecting in Notepad, Word, Edge/Chrome text areas, Outlook; then the §9a acceptance list (typed text, yesterday's letter, typing while the AI thinks).
+- Not yet built: Vosk grammar for the paused "unmute" listener (currently VAD + local ASR on short utterances), AT-SPI adapter for KDE, selection-only fallback in the app (core supports it; Ctrl+C-based selection reading is unsafe in apps that copy the whole line when nothing is selected), a distinct Off sound asset.
+- After a live edit the ledger is invalidated (its caret-relative region no longer holds), so "scratch that" right after a live correction reports nothing recent.
+
 ## Where the code is
 
 | Path                                  | What it holds                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -102,11 +127,12 @@ A word is saved permanently only when the user's own words ask for it ("remember
 ## Next steps, in order
 
 1. Prioritize Windows 11 acceptance for Dad. Use the Windows guest checklist in `docs/LINUX_TESTING.md` when a Windows VM is available (WinBoat is Ben's likely route). Use the Linux desktop for shared-code iteration and supporting smoke tests.
-2. Check the compatibility panel and fix actual focus/input/clipboard failures before testing the voice listener.
-3. Run PLAN.md §0 (learn “Striper”, restart, preserve “striped shirt”) and the Thursday → Friday → Saturday → undo sequence in Windows Notepad and a real email/word-processing workflow. Track guest results separately from Dad's PC.
-4. Test wake confirmation, same-breath commands, standalone wake acknowledgment, follow-ups, cancellation, and focus changes with the actual microphone.
-5. Batch fixes and request the installer needed for the next actual test: Windows for the Windows guest, Linux for local installation. Retain cross-platform tests. Do not launch repeated installer builds or defer Windows/Word work merely because development happens on Linux.
-6. Generate Striper updater keys before enabling self-updates. Consider a Windows UI Automation/Word adapter only after actual app results justify it.
+2. Try Dad's hands-free session (PLAN.md §5a acceptance list) with a real microphone, then the UIA live-text checks in §9a on Windows Notepad and Word.
+3. Check the compatibility panel and fix actual focus/input/clipboard failures before testing the voice listener.
+4. Run PLAN.md §0 (learn “Striper”, restart, preserve “striped shirt”) and the Thursday → Friday → Saturday → undo sequence in Windows Notepad and a real email/word-processing workflow. Track guest results separately from Dad's PC.
+5. Test wake confirmation, same-breath commands, standalone wake acknowledgment, follow-ups, cancellation, and focus changes with the actual microphone.
+6. Batch fixes and request the installer needed for the next actual test: Windows for the Windows guest, Linux for local installation. Retain cross-platform tests. Do not launch repeated installer builds or defer Windows/Word work merely because development happens on Linux.
+7. Generate Striper updater keys before enabling self-updates. Consider a Windows UI Automation/Word adapter only after actual app results justify it.
 
 ## Working on it
 

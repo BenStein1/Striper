@@ -772,6 +772,9 @@ pub fn run(cli_args: CliArgs) {
             helpers::clamshell::is_laptop,
             striper::diagnostics::get_correction_capabilities,
             striper::listener::get_correction_listener_status,
+            striper::hands_free::get_dictation_session_status,
+            striper::hands_free::toggle_dictation_session,
+            striper::hands_free::change_hands_free_shortcut_setting,
             striper::listener::change_correction_listener_enabled_setting,
             striper::listener_install::install_correction_listener,
             striper::commands::get_learned_vocabulary,
@@ -879,6 +882,8 @@ pub fn run(cli_args: CliArgs) {
                 signal_handle::send_transcription_input(app, "transcribe_with_post_process", "CLI");
             } else if args.iter().any(|a| a == "--toggle-correction") {
                 signal_handle::send_transcription_input(app, "correct", "CLI");
+            } else if args.iter().any(|a| a == "--toggle-dictation-session") {
+                crate::striper::hands_free::toggle(app);
             } else if args.iter().any(|a| a == "--cancel") {
                 crate::utils::cancel_current_operation(app);
             } else {

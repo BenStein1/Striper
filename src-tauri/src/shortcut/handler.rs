@@ -34,6 +34,14 @@ pub fn handle_shortcut_event(
 ) {
     let settings = get_settings(app);
 
+    // Hands-free mode: the dictation shortcut toggles a session on press.
+    if binding_id == "transcribe" && settings.hands_free_shortcut {
+        if is_pressed {
+            crate::striper::hands_free::toggle(app);
+        }
+        return;
+    }
+
     // Transcribe bindings are handled by the coordinator.
     if is_transcribe_binding(binding_id) {
         if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
