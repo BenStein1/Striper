@@ -1388,7 +1388,7 @@ fn worker_exe() -> io::Result<PathBuf> {
     if let Some((path, launched)) = LAUNCHED_EXE.get().and_then(Option::as_ref) {
         if file_id(path).ok().as_ref() != Some(launched) {
             return Err(io::Error::other(
-                "Handy was updated or moved while it was running; restart Handy",
+                "Striper was updated or moved while it was running; restart Striper",
             ));
         }
     }
@@ -1499,7 +1499,7 @@ mod unit_tests {
 /// need a debug worker exe (fault injection is compiled out of release), and
 /// the stream tests a model that can stream.
 /// Run with:
-/// `HANDY_TRANSCRIBE_WORKER_EXE=target/debug/handy HANDY_TEST_MODEL=<gguf>
+/// `HANDY_TRANSCRIBE_WORKER_EXE=target/debug/striper HANDY_TEST_MODEL=<gguf>
 ///  HANDY_TEST_WAV=<16 kHz mono wav> cargo test --lib engine_supervisor --
 ///  --ignored --nocapture --test-threads=1`
 #[cfg(test)]

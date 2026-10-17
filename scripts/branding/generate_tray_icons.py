@@ -21,7 +21,8 @@ with the glyph knocked out, warning = idle glyph + "!" badge):
   recording     disc with the artwork's waveform bars (every other bar) knocked out
   transcribing  disc with the fish silhouette knocked out
 
-Also writes src-tauri/icons/logo.png (1024x1024) and src/assets/striper-logo.png (256x256).
+Also writes src-tauri/icons/logo.png (1024x1024), src/assets/striper-logo.png
+(256x256) and src/assets/striper-fish-glyph.png (128x128 monochrome mask).
 
 Usage: python3 scripts/branding/generate_tray_icons.py  (needs pillow, numpy, scipy)
 """
@@ -188,6 +189,9 @@ def main():
 
     full.resize((1024, 1024), Image.LANCZOS).save(ROOT / "src-tauri/icons/logo.png", optimize=True)
     full.resize((256, 256), Image.LANCZOS).save(ROOT / "src/assets/striper-logo.png", optimize=True)
+    # Monochrome glyph used as a CSS mask for the sidebar icon (tinted by theme).
+    glyph = mask_to_alpha(square_crop(fish_glyph, 0.02), 128)
+    solid_icon(glyph, white).save(ROOT / "src/assets/striper-fish-glyph.png", optimize=True)
 
 
 if __name__ == "__main__":
