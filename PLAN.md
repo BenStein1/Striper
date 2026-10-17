@@ -1,10 +1,33 @@
 # Striper — Development Plan
 
-**Status:** Proposed / ready for implementation spike  
+**Status:** In implementation. See [Implementation status](#implementation-status) and [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)  
 **Date:** October 17, 2026  
 **Initial target:** Cross-platform fork developed primarily on Linux; first deployment Windows 11 with Handy + local Whisper and NVIDIA GTX 1080 (8 GB VRAM)  
 **Audience:** A Dragon NaturallySpeaking user on Windows and a Linux-based developer who also wants the tool available on Linux  
 **Application name:** Striper (S-T-R-I-P-E-R), named for the striped bass; not “striped” or “stripper.”
+
+## Implementation status
+
+_Last updated October 17, 2026. "Tested" means automated tests on Linux (and Windows CI for the core crates). "Needs Windows" means the code exists but has not run on Dad's Windows 11 machine, his microphone or the GTX 1080. Checkboxes in the sections below stay unticked until their acceptance gate has passed on real hardware._
+
+| Area | State | Evidence |
+|---|---|---|
+| Fork, rebrand to Striper, Handy attribution kept | Done | `9bf8a10`; About page and README credit Handy; original icon kept at `assets/branding/striper-original-icon.png` |
+| Native Windows CI build (unsigned NSIS/MSI artifact) | Done, needs first green run observed | `.github/workflows/main-build.yml` |
+| Shared core crate (`crates/striper-core`): vocabulary, command schema, parser, ledger, verified edit planner, SQLite store | Done, tested | 86 unit tests on Linux and Windows CI |
+| Platform crate (`crates/striper-platform`): foreground window + modifier state, Windows and X11 (KDE Wayland via kdotool if installed) | Done, Windows path type-checked only | Needs Windows |
+| Lane A: learned vocabulary applied before paste, context-aware, per-app scope, ASR hints | Done, tested in core | Needs Windows |
+| Lane A keeps working with no LLM | Done | Lane A never calls the LLM |
+| Lane B: correction shortcut (Ctrl+Alt+Space) and `--toggle-correction`, shared mic/ASR path with Lane A | Done | Needs Windows |
+| Lane B operations: replace, follow-up ("actually Saturday"), punctuation, spaces, insert, capitalize, delete, scratch that, undo, remember, forget, cancel, done | Done, tested in core | Needs Windows (Notepad, Word, email) |
+| Local parser first, OpenAI-compatible LLM fallback with strict schema, timeout and back-off | Done | Needs a live endpoint |
+| Verified, transactional, reversible edits (selection read-back, post-verify, undo on mismatch, clipboard restore, stale-focus check) | Done, tested against a simulated field | Needs Windows; read-back depends on each app allowing copy |
+| Persistent memory only when the user says "remember", stored in SQLite with audit log | Done, tested | §0 acceptance test passes in core tests; needs a real restart on Windows |
+| Vocabulary manager UI, import/export, recent corrections, overlay feedback | Done | Lint and build pass; not yet viewed on screen |
+| Wake phrase "correct that" (CPU detector) | Not started | Hotkey is the fallback per M1 |
+| Windows UI Automation / Word adapter | Not started | Keystroke + clipboard path first |
+| Data migration from Handy's `com.pais.handy` app-data folder | Not started | Copy models/settings by hand for now |
+| Updater signing keys for Striper | Not started | Update checks default off |
 
 ## 0. First acceptance test — Striper must remember its own name
 
