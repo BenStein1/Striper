@@ -982,17 +982,25 @@ async deleteLearnedVocabulary(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async exportLearnedVocabulary() : Promise<Result<string, string>> {
+/**
+ * Writes the learned vocabulary as JSON to `path` (chosen by the user in a
+ * save dialog). Returns the number of entries written.
+ */
+async exportLearnedVocabulary(path: string) : Promise<Result<number, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("export_learned_vocabulary") };
+    return { status: "ok", data: await TAURI_INVOKE("export_learned_vocabulary", { path }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async importLearnedVocabulary(json: string) : Promise<Result<number, string>> {
+/**
+ * Merges a vocabulary JSON file at `path` (chosen by the user in an open
+ * dialog) into the store. Returns the number of entries imported.
+ */
+async importLearnedVocabulary(path: string) : Promise<Result<number, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("import_learned_vocabulary", { json }) };
+    return { status: "ok", data: await TAURI_INVOKE("import_learned_vocabulary", { path }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

@@ -167,6 +167,12 @@ const settingUpdaters: {
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>
     commands.changeAppendTrailingSpaceSetting(value as boolean),
+  learned_vocabulary_enabled: (value) =>
+    commands.changeLearnedVocabularyEnabledSetting(value as boolean),
+  correction_llm_enabled: (value) =>
+    commands.changeCorrectionLlmEnabledSetting(value as boolean),
+  correction_require_readback: (value) =>
+    commands.changeCorrectionRequireReadbackSetting(value as boolean),
   log_level: (value) => commands.setLogLevel(value as any),
   app_language: (value) => commands.changeAppLanguageSetting(value as string),
   theme: (value) => commands.changeThemeSetting(value as string),

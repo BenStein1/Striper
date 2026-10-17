@@ -1,6 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Cog, FlaskConical, History, Info, Sparkles, Cpu } from "lucide-react";
+import {
+  BookA,
+  Cog,
+  FlaskConical,
+  History,
+  Info,
+  Sparkles,
+  Cpu,
+} from "lucide-react";
 import StriperLogo from "./icons/StriperLogo";
 import StriperFish from "./icons/StriperFish";
 import { useSettings } from "../hooks/useSettings";
@@ -12,6 +20,7 @@ import {
   AboutSettings,
   PostProcessingSettings,
   ModelsSettings,
+  VocabularySettings,
 } from "./settings";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
@@ -36,6 +45,12 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.general",
     icon: StriperFish,
     component: GeneralSettings,
+    enabled: () => true,
+  },
+  vocabulary: {
+    labelKey: "sidebar.vocabulary",
+    icon: BookA,
+    component: VocabularySettings,
     enabled: () => true,
   },
   history: {

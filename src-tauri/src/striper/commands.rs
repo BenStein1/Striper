@@ -170,18 +170,34 @@ pub fn delete_learned_vocabulary(state: Striper<'_>, id: i64) -> Result<(), Stri
     Ok(())
 }
 
+/// Largest vocabulary file accepted for import.
+const MAX_IMPORT_BYTES: u64 = 4 * 1024 * 1024;
+
+/// Writes the learned vocabulary as JSON to `path` (chosen by the user in a
+/// save dialog). Returns the number of entries written.
 #[tauri::command]
 #[specta::specta]
-pub fn export_learned_vocabulary(state: Striper<'_>) -> Result<String, String> {
+pub fn export_learned_vocabulary(state: Striper<'_>, path: String) -> Result<u32, String> {
     let export = state
         .with_store(|s| s.export())?
         .map_err(|e| e.to_string())?;
-    serde_json::to_string_pretty(&export).map_err(|e| e.to_string())
+    let json = serde_json::to_string_pretty(&export).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| format!("Could not write {path}: {e}"))?;
+    Ok(export.entries.len() as u32)
 }
 
+/// Merges a vocabulary JSON file at `path` (chosen by the user in an open
+/// dialog) into the store. Returns the number of entries imported.
 #[tauri::command]
 #[specta::specta]
-pub fn import_learned_vocabulary(state: Striper<'_>, json: String) -> Result<u32, String> {
+pub fn import_learned_vocabulary(state: Striper<'_>, path: String) -> Result<u32, String> {
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("Could not read {path}: {e}"))?
+        .len();
+    if size > MAX_IMPORT_BYTES {
+        return Err("The file is too large to be a vocabulary export".into());
+    }
+    let json = std::fs::read_to_string(&path).map_err(|e| format!("Could not read {path}: {e}"))?;
     let data: VocabularyExport =
         serde_json::from_str(&json).map_err(|e| format!("Not a vocabulary export: {e}"))?;
     let n = state

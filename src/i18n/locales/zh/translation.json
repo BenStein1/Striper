@@ -16,7 +16,8 @@
     "postProcessing": "后处理",
     "history": "历史记录",
     "debug": "调试",
-    "about": "关于"
+    "about": "关于",
+    "vocabulary": "Vocabulary"
   },
   "onboarding": {
     "subtitle": "请选择一个转录模型以开始使用",
@@ -171,6 +172,10 @@
           "transcribe_with_post_process": {
             "name": "后处理快捷键",
             "description": "可选：一个专用快捷键，始终对您的转录应用 AI 后处理。"
+          },
+          "correct": {
+            "name": "Correction Shortcut",
+            "description": "Hold (or press) and speak a correction for what you just dictated, such as \"change Thursday to Friday\", \"scratch that\" or \"my name is Stephen, S-T-E-P-H-E-N, remember that\"."
           }
         },
         "errors": {
@@ -626,6 +631,80 @@
       "whatsNewUpdates": {
         "label": "显示新功能",
         "description": "Striper 更新后显示发行说明"
+      }
+    },
+    "vocabulary": {
+      "correction": {
+        "title": "Spoken Corrections",
+        "description": "Fix the text you just dictated by voice. Simple commands are understood on this computer; the AI provider below is only asked when a command is not recognized.",
+        "applyLearned": {
+          "label": "Apply Learned Spellings",
+          "description": "Replace misheard words with the spellings you taught Striper before the text is typed."
+        },
+        "readback": {
+          "label": "Check Before Editing",
+          "description": "Select and copy the text before changing it, and only edit when it matches what Striper expects. Turn off only for apps that block copying; edits are then made without checking."
+        },
+        "llm": {
+          "label": "Use AI for Unrecognized Commands",
+          "description": "Send the spoken command and the recent dictation to the AI provider when the built-in parser does not understand it. Dictation keeps working when the provider is offline."
+        }
+      },
+      "provider": {
+        "title": "Correction AI Provider",
+        "description": "Shared with Post Process. Any OpenAI-compatible endpoint works, including a local server."
+      },
+      "add": {
+        "title": "Teach a Spelling",
+        "description": "Striper only replaces a misheard word when the context matches, so ordinary words with the same sound stay untouched.",
+        "preferred": {
+          "title": "Correct Spelling",
+          "description": "How the word should be written.",
+          "placeholder": "Striper"
+        },
+        "aliases": {
+          "title": "Heard As",
+          "description": "Comma-separated words the recognizer produces instead.",
+          "placeholder": "striped, stripper"
+        },
+        "context": {
+          "title": "Nearby Words",
+          "description": "Comma-separated words that show the correct spelling is meant. Leave empty to replace only when the heard word is capitalized mid-sentence.",
+          "placeholder": "app, dictation"
+        },
+        "always": {
+          "label": "Replace Everywhere",
+          "description": "Replace the heard words in every context. Use only for words that never mean anything else."
+        },
+        "button": "Add Spelling",
+        "added": "Learned \"{{word}}\""
+      },
+      "entries": {
+        "title": "Learned Spellings ({{count}})",
+        "empty": "Nothing learned yet. Say \"remember that\" in a correction, or add a spelling above.",
+        "heardAs": "Heard as: {{words}}",
+        "always": "Replaced everywhere",
+        "whenNear": "Replaced near: {{words}}",
+        "capitalizedOnly": "Replaced when capitalized mid-sentence",
+        "onlyIn": "Only in {{app}}",
+        "enable": "Enable",
+        "disable": "Disable",
+        "makeAlways": "Replace Everywhere",
+        "makeContextual": "Use Context",
+        "delete": "Delete",
+        "deleteConfirm": "Forget the spelling \"{{word}}\"?"
+      },
+      "transfer": {
+        "import": "Import…",
+        "export": "Export…",
+        "exported": "Exported {{count}} spellings",
+        "imported": "Imported {{count}} spellings"
+      },
+      "recent": {
+        "title": "Recent Corrections",
+        "empty": "No corrections yet.",
+        "change": "\"{{before}}\" → \"{{after}}\"",
+        "meta": "{{result}} · {{interpreter}} · {{time}}"
       }
     }
   },

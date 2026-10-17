@@ -469,3 +469,36 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Correction feedback: a wide pill with a status dot and the outcome text. */
+.scard.sfeedback {
+  width: var(--ov-open-w);
+  border-radius: 18px;
+}
+.sfeedback-label {
+  font-family: var(--s-font);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-text);
+  text-align: center;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-width: 0;
+}
+.sdot.success {
+  background: #3fa66b;
+}
+.sdot.info {
+  background: var(--s-accent);
+}
+.sdot.error {
+  background: #d9534f;
+}
+.scard.sfeedback .sbase {
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  height: auto;
+  min-height: var(--ov-base-h);
+  padding: 6px 10px;
+}

@@ -13,7 +13,19 @@ import i18n, { syncLanguageFromSettings } from "@/i18n";
 import type { ModelStateEvent } from "@/lib/types/events";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 
-type OverlayState = "recording" | "streaming" | "transcribing" | "processing";
+type OverlayState =
+  | "recording"
+  | "streaming"
+  | "transcribing"
+  | "processing"
+  | "feedback";
+
+// Result of a spoken correction, shown briefly after it runs.
+type FeedbackKind = "success" | "info" | "error";
+interface OverlayFeedback {
+  message: string;
+  kind: FeedbackKind;
+}
 
 // Number of reactive bars in the waveform (the simple, smoothed style shared by
 // every overlay form). Mic levels arrive as 16 FFT buckets; we take the first N.
@@ -61,6 +73,10 @@ const RecordingOverlay: React.FC = () => {
   // True once live text overflows the cap. A top overlay fades its top edge only
   // while overflowing, so the resting first line stays crisp flush under the pill.
   const [overflowing, setOverflowing] = useState(false);
+  const [feedback, setFeedback] = useState<OverlayFeedback>({
+    message: "",
+    kind: "info",
+  });
 
   const smoothedLevelsRef = useRef<number[]>(Array(16).fill(0));
   // Live-text scroll-back: the text region "sticks" to the newest line while the
@@ -112,6 +128,11 @@ const RecordingOverlay: React.FC = () => {
         setIsVisible(false);
         setCaptureReady(false);
       });
+
+      const unlistenFeedback = await listen<OverlayFeedback>(
+        "overlay-feedback",
+        (event) => setFeedback(event.payload),
+      );
 
       const unlistenReady = await listen("recording-ready", () => {
         setElapsed(0);
@@ -170,6 +191,7 @@ const RecordingOverlay: React.FC = () => {
       return () => {
         unlistenShow();
         unlistenHide();
+        unlistenFeedback();
         unlistenReady();
         unlistenLevel();
         unlistenStream();
@@ -284,6 +306,26 @@ const RecordingOverlay: React.FC = () => {
       <div className="sbase-r">{showCancel && cancelBtn}</div>
     </div>
   );
+
+  // ---- Correction feedback: the outcome of a spoken edit, read at a glance ----
+  if (state === "feedback") {
+    return (
+      <div
+        dir={direction}
+        className={`ov-stage ${position} ov-fade ${isVisible ? "show" : ""}`}
+      >
+        <div className={`scard sfeedback ${feedback.kind}`} role="status">
+          <div className="sbase">
+            <div className="sbase-l">
+              <span className={`sdot ${feedback.kind}`} />
+            </div>
+            <span className="sfeedback-label">{feedback.message}</span>
+            <div className="sbase-r" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ---- Live overlay: a pill that sculpts open into a panel ----
   if (state === "streaming") {
