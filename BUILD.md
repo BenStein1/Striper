@@ -55,7 +55,7 @@ This guide covers how to set up the development environment and build Striper fr
   ```bash
   # Ubuntu/Debian
   sudo apt update
-  sudo apt install build-essential clang libclang-dev libevdev-dev libasound2-dev pkg-config libssl-dev libvulkan-dev vulkan-tools glslc spirv-headers glslang-tools libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell0 libgtk-layer-shell-dev patchelf cmake
+  sudo apt install git curl unzip build-essential clang libclang-dev libevdev-dev libasound2-dev pkg-config libssl-dev libvulkan-dev vulkan-tools glslc spirv-headers glslang-tools libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-layer-shell0 libgtk-layer-shell-dev patchelf cmake
 
   # Fedora/RHEL
   sudo dnf groupinstall "Development Tools"
@@ -77,7 +77,7 @@ This guide covers how to set up the development environment and build Striper fr
 ### 1. Clone the Repository
 
 ```bash
-git clone git@github.com:BenStein1/Striper.git
+git clone https://github.com/BenStein1/Striper.git
 cd Striper
 ```
 
@@ -87,13 +87,22 @@ cd Striper
 bun install
 ```
 
-### 3. Start Dev Server
+### 3. Download the development VAD model
+
+Run this from the repository root. The voice-activity model is a required development resource, separate from the transcription models downloaded through the app:
+
+```bash
+mkdir -p src-tauri/resources/models
+curl --fail --location --output src-tauri/resources/models/silero-vad-v6.2-F32.gguf https://huggingface.co/handy-computer/silero-vad-v6.2-gguf/resolve/main/silero-vad-v6.2-F32.gguf
+```
+
+### 4. Start Dev Server
 
 ```bash
 bun tauri dev
 ```
 
-### 4. Build for Production
+### 5. Build for Production
 
 ```bash
 bun run tauri build
@@ -105,29 +114,24 @@ This compiles a release binary and generates platform-specific bundles (deb, rpm
 
 The raw binary (`src-tauri/target/release/striper`) cannot run standalone — it needs Tauri resource files (tray icons, sounds, VAD model) to be co-located at the expected path.
 
-**Install from the deb bundle** (works on any Linux distro):
+On a compatible Debian/Ubuntu/Kubuntu desktop, build only the `.deb` when you need an installable package:
 
 ```bash
-cd /tmp
-ar x /path/to/Striper/src-tauri/target/release/bundle/deb/Striper_*_amd64.deb data.tar.gz
-tar xzf data.tar.gz
-sudo cp usr/bin/striper /usr/bin/
-sudo cp -a usr/lib/. /usr/lib/
-sudo cp -r usr/share/icons/hicolor/* /usr/share/icons/hicolor/
-sudo cp usr/share/applications/Striper.desktop /usr/share/applications/
+bun run tauri build --bundles deb
+ls src-tauri/target/release/bundle/deb/*.deb
 ```
 
-The runtime libraries live in the app-private `/usr/lib/Striper/` (on the binary's rpath), so no `ldconfig` step is needed.
-
-After subsequent rebuilds, copy the binary and any refreshed runtime libraries:
+Then install the exact file printed above (replace `BUILT_FILE.deb`):
 
 ```bash
-sudo cp src-tauri/target/release/striper /usr/bin/
-sudo mkdir -p /usr/lib/Striper
-sudo cp -a src-tauri/transcribe-libs/. /usr/lib/Striper/
+sudo apt install ./src-tauri/target/release/bundle/deb/BUILT_FILE.deb
 ```
 
-Resources only need re-copying if they change upstream (new icons, sounds, models, etc.).
+APT installs the packaged binary, resources, app-private recognition libraries, desktop entry and icons together, and resolves declared system dependencies. Do not manually extract the archive into `/usr` or copy a rebuilt binary over a package-managed installation. For an update, quit the running app, rebuild the `.deb`, install it with APT, then relaunch. User settings and downloaded models are retained.
+
+A Debian package is not a universal Linux installer: its architecture and linked system libraries must match the target distribution. The GitHub Linux installer currently builds on Ubuntu 24.04; older Debian/Ubuntu releases may need a local build instead. See [README installation](README.md#kubuntu--ubuntu--debian-deb) for downloaded artifacts, desktop helpers, and first-run setup.
+
+For routine development, use `bun run tauri dev` from the repository root. It uses development resources and reuses local build caches; packaging is unnecessary for every edit. The first native speech/GPU compilation can take a long time. Installer workflows on GitHub are also manual; only request another when a batch is ready to test.
 
 ## Troubleshooting
 

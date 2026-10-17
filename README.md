@@ -43,18 +43,78 @@ Voice activation still needs testing with the actual user's microphone and appli
 
 ### Installation
 
-Striper does not publish signed releases yet.
+Striper does not publish signed releases yet. Use an installer from the [releases page](https://github.com/BenStein1/Striper/releases), when available, or a successful **Main Branch Build** run as described below.
 
-1. Download a build from the [releases page](https://github.com/BenStein1/Striper/releases) when one is available, or grab the latest unsigned installer from the **Artifacts** section of a successful [Windows build run](https://github.com/BenStein1/Striper/actions)
-   - **Windows**: run the `Striper_*_x64-setup.exe` (NSIS) or `.msi` installer. Builds are unsigned, so SmartScreen will warn; choose **More info → Run anyway**.
-   - **Debian/Ubuntu**: install a `.deb` with APT so required dependencies are installed automatically:
-     ```bash
-     sudo apt install ./Striper_*.deb
-     ```
-     Do not use `dpkg -i` unless the dependencies are already installed. If you already used it, run `sudo apt --fix-broken install`.
-2. Launch Striper and grant necessary system permissions (microphone, accessibility)
-3. Configure your preferred keyboard shortcuts in Settings
-4. Start transcribing!
+#### Kubuntu / Ubuntu / Debian (.deb)
+
+These instructions cover a normal desktop installation, including a Linux VM. You do **not** need Rust, Bun, or the source code to install a downloaded package.
+
+**1. Check your system.** Open Konsole (or another terminal) and run:
+
+```bash
+cat /etc/os-release
+dpkg --print-architecture
+printf 'Session: %s; desktop: %s\n' "$XDG_SESSION_TYPE" "$XDG_CURRENT_DESKTOP"
+```
+
+The current Linux installer is **amd64 / x86_64**, built on **Ubuntu 24.04**. Kubuntu uses Ubuntu packages. Other Debian-family releases must provide compatible system libraries; a `.deb` extension alone does not establish compatibility. If APT reports unavailable dependencies or startup reports a newer `GLIBC` requirement, use a compatible Ubuntu/Kubuntu installation or [build on your own distribution](BUILD.md). Do not replace system libraries manually. An ARM64 guest cannot use this installer.
+
+**2. Download the Linux installer.**
+
+1. Open [Main Branch Build in GitHub Actions](https://github.com/BenStein1/Striper/actions/workflows/main-build.yml).
+2. Open a **successful run that includes the Linux job**, and check its commit/date. Routine test runs do not contain installers. A Windows-only run does not contain the Linux package.
+3. Under **Artifacts**, download `striper-linux-ubuntu-24.04-x86_64-unknown-linux-gnu`. GitHub requires you to sign in to download workflow artifacts; artifacts expire after 30 days.
+4. Extract the downloaded ZIP using Dolphin/Ark. Inside the extracted folders, find the **`.deb`** file (usually under `deb/`). The ZIP itself is not the installer. Use the `.deb` for this guide, rather than the AppImage.
+
+If no usable artifact exists, a repository maintainer can select **Run workflow → platform: linux → Run workflow** on that page. Packaging is manual and can take a long time; reuse an existing installer until a new batch is ready to test. A successful installer represents its displayed commit, not necessarily the current source on `main`.
+
+**3. Install with APT.** In Dolphin, open the folder containing the extracted `.deb`, then use **Open Terminal Here**. Run:
+
+```bash
+sudo apt update
+ls ./*.deb
+```
+
+Use the exact filename printed above in place of `DOWNLOADED_FILE.deb`:
+
+```bash
+sudo apt install ./DOWNLOADED_FILE.deb
+```
+
+Keep the leading `./` and quote the path if it contains spaces. APT installs the package's declared runtime dependencies, including GTK layer shell and OpenBLAS; developer packages are unnecessary for a downloaded installer. If you already installed with `dpkg -i` and it left missing dependencies, run `sudo apt --fix-broken install`, then retry the APT command. If a dependency is unavailable for your release, stop and check compatibility rather than forcing the installation.
+
+**4. Set up text input for your desktop session.** Use the session reported in step 1:
+
+| Session            | Setup                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plasma **X11**     | Run `sudo apt install xdotool`. This is the simplest first-test path when your login screen offers a Plasma X11 session.                                                                                            |
+| Plasma **Wayland** | Run `sudo apt install wl-clipboard`, then configure a working `dotool` or `ydotool` input backend and a Plasma-compatible `kdotool` for foreground-window detection. See [Wayland helpers](#wayland-helpers) below. |
+
+Install the helpers **inside the guest** when testing in a VM. They control the guest desktop. A helper that works on the host does not configure the guest.
+
+**5. Launch and complete first-run setup.**
+
+1. Open **Striper** from the application launcher, or run `striper` in Konsole to see startup errors. If it is already running, launching it again opens its settings; check the system tray too.
+2. Select your microphone and download/select a transcription model. Installer downloads do not include all speech models. Confirm the microphone works in the desktop's audio settings; a VM also needs microphone passthrough. Start with CPU transcription in a VM without GPU passthrough. On an NVIDIA desktop, keep the existing working GPU driver; installing Striper does not require replacing it.
+3. Check the dictation shortcut (default **Ctrl+Space**) in Settings. If Plasma intercepts it or it does not register under Wayland, use the [desktop shortcut instructions](#linux-notes) below. A desktop command using `striper --toggle-transcription` starts recording on one press and stops on the next; it is not hold-to-talk. Avoid binding the same key through both Plasma and Striper.
+4. Keep **Advanced → Overlay Position → None** during initial Linux tests so the recording overlay does not take focus from the editor.
+5. Open **Kate**, click in a disposable document, and dictate a sentence. Confirm it pastes into Kate before testing correction. Do not use Konsole as the first correction target: Ctrl+C has a different meaning there.
+6. Open **Vocabulary → Correction compatibility**. Refresh after installing helpers. Detection alone does not verify device permissions, daemon readiness, or successful editing; test in Kate as well. **Copy diagnostic report** provides a report you can share when troubleshooting.
+7. For voice commands, open **Vocabulary → Voice correction**, download the local listener files (about 55 MB), and enable **Listen for “correct that”**. After dictating, release the dictation shortcut and say **“correct that, change Thursday to Friday.”** If you say only **“correct that”**, wait for **“Listening for a correction”** before giving the instruction. **Ctrl+Alt+Space** remains the correction shortcut fallback, rather than a requirement for voice correction.
+
+Follow [Linux testing](docs/LINUX_TESTING.md) for correction, undo, focus changes, clipboard restoration, and VM checks. Keep **Check before editing** enabled during the first tests.
+
+**Updating or removing Striper.** Quit the running app using its tray menu before installing a newer `.deb` with the same APT command, then launch it again. A package upgrade keeps your user settings and downloaded models. To remove the installed package:
+
+```bash
+sudo apt remove striper
+```
+
+Removing the package leaves user data in place. To find your data and logs, use Striper's **About → App Data Directory** entry. For startup/rendering errors, see [Linux startup troubleshooting](#linux-startup-crashes-or-instability).
+
+#### Windows
+
+Download the Windows artifact from a successful Windows build, extract the ZIP, and run the `Striper_*_x64-setup.exe` (NSIS) or `.msi` installer. Builds are unsigned, so SmartScreen may require **More info → Run anyway**. Launch Striper, select a microphone and model, and configure shortcuts. Windows manual validation is currently deferred.
 
 ### Development Setup
 
@@ -78,6 +138,7 @@ Striper supports command-line flags for controlling a running instance and custo
 ```bash
 striper --toggle-transcription    # Toggle recording on/off
 striper --toggle-post-process     # Toggle recording with post-processing on/off
+striper --toggle-correction       # Toggle explicit correction recording on/off
 striper --cancel                  # Cancel the current operation
 ```
 
@@ -120,27 +181,27 @@ If you switch between a MacBook keyboard and an external one, pick a shortcut bu
 
 ### Linux Notes
 
-**Text Input Tools:**
+For package installation and a first test on Kubuntu, start with [Kubuntu / Ubuntu / Debian (.deb)](#kubuntu--ubuntu--debian-deb).
 
-For reliable text input on Linux, install the appropriate tool for your display server:
+#### Wayland helpers
 
-| Display Server | Recommended Tool | Install Command                                    |
-| -------------- | ---------------- | -------------------------------------------------- |
-| X11            | `xdotool`        | `sudo apt install xdotool`                         |
-| Wayland        | `wtype`          | `sudo apt install wtype`                           |
-| Both           | `dotool`         | `sudo apt install dotool` (requires `input` group) |
+Wayland needs separate support for input, clipboard access, and foreground-window detection. Striper does **not** select `wtype` on KDE Plasma or GNOME. Installing `wtype` alone will not configure correction on those desktops.
 
-- **X11**: Install `xdotool` for both direct typing and clipboard paste shortcuts
-- **Ubuntu 26.04**: Has Wayland display server by default. `wtype` does not work, you need to install `ydotool` and configure systemd as described [here](https://github.com/cjpais/Handy/pull/557#issuecomment-3781249267).
-- **Wayland**: Install `wtype` (preferred) or `dotool` for text input to work correctly
-- **dotool setup**: Requires adding your user to the `input` group: `sudo usermod -aG input $USER` (then log out and back in)
+| Session                   | Correction input                                        | Foreground-window detection                            | Clipboard                                                |
+| ------------------------- | ------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| X11                       | `xdotool` (`sudo apt install xdotool`)                  | Native X11 queries                                     | Native clipboard                                         |
+| Plasma Wayland            | `dotool` or `ydotool`, configured for your user         | `kdotool` matching your Plasma version                 | `wl-copy` / `wl-paste` (`sudo apt install wl-clipboard`) |
+| GNOME Wayland             | `dotool` or `ydotool`, configured for your user         | No general adapter yet; ambient correction unavailable | `wl-copy` / `wl-paste`                                   |
+| Other Wayland compositors | `wtype` where supported, otherwise `dotool` / `ydotool` | May be unavailable; check compatibility in Striper     | `wl-copy` / `wl-paste` recommended                       |
 
-Without these tools, Striper falls back to enigo which may have limited compatibility, especially on Wayland.
+On **Plasma Wayland**:
 
-**Wayland Support (Linux):**
+1. Install clipboard tools with `sudo apt install wl-clipboard`.
+2. Check which input packages your configured repositories offer: `apt-cache policy dotool ydotool ydotoold`. Install one available backend and follow its upstream/distro setup: [dotool](https://sr.ht/~geb/dotool/) or [ydotool](https://github.com/ReimuNotMoe/ydotool). For releases offering both ydotool packages, the installation command is `sudo apt install ydotool ydotoold`. Releases differ in daemon/service packaging, device permissions, and socket configuration, so do not assume a universal `systemctl` command. The chosen tool must work as your normal desktop user, with its required input-device access and daemon running. Do not run Striper with `sudo`.
+3. Check your Plasma version in **System Settings → About this System** (or run `plasmashell --version`). Install [kdotool](https://github.com/jinliu/kdotool) using its upstream release/build instructions. **Version 0.3.0 and later target Plasma 6; Plasma 5 needs an older compatible release.** It must be on the desktop session's `PATH`. `kdotool` identifies windows; it does not send keystrokes.
+4. Restart Striper if its environment changed, then refresh **Vocabulary → Correction compatibility**. Running `kdotool getactivewindow` in Konsole should return the current foreground window ID (normally Konsole's); this checks foreground queries, not input injection. Test an actual paste and correction in Kate before enabling the ambient listener.
 
-- Limited support for Wayland display server
-- Requires [`wtype`](https://github.com/atx/wtype) or [`dotool`](https://sr.ht/~geb/dotool/) for text input to work correctly (see [Linux Notes](#linux-notes) below for installation)
+Without a working foreground-window ID, ambient voice correction cannot activate. The explicit correction shortcut remains available, with source-selection readback required by default. If helpers are not yet configured and your login screen offers X11, sign out and select a Plasma X11 session for the initial test, then install `xdotool` there. See [Linux testing](docs/LINUX_TESTING.md) for the compatibility limits.
 
 **Other Notes:**
 
@@ -168,11 +229,10 @@ Without these tools, Striper falls back to enigo which may have limited compatib
   5. Click **Set Shortcut** and press your desired key combination (e.g., `Super+O`)
 
   **KDE Plasma:**
-  1. Open **System Settings > Shortcuts > Custom Shortcuts**
-  2. Click **Edit > New > Global Shortcut > Command/URL**
-  3. Name it `Toggle Striper Transcription`
-  4. In the **Trigger** tab, set your desired key combination
-  5. In the **Action** tab, set the command to `striper --toggle-transcription`
+  1. Open **System Settings → Shortcuts** (under **Keyboard** on some versions).
+  2. Add a command or script shortcut named `Toggle Striper Transcription`, with command `striper --toggle-transcription`. In Plasma 5's **Custom Shortcuts** page, use **Edit → New → Global Shortcut → Command/URL**, then set the **Action** and **Trigger** tabs.
+  3. Assign a free key combination. Each press toggles recording, so press it again to finish.
+  4. Optionally add `striper --toggle-correction` on another shortcut as the explicit correction fallback. The voice listener is enabled separately in **Vocabulary → Voice correction**.
 
   **Sway / i3:**
 
