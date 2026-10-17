@@ -49,7 +49,8 @@ impl<'a> LiveSession<'a> {
         let settings = get_settings(&tm.app_handle);
         let effective_language =
             effective_language_for_model(&settings, tm.model_manager.as_ref(), model_id);
-        let setup = run_setup(info, &settings, &effective_language);
+        let hints = crate::striper::asr_hints(&tm.app_handle);
+        let setup = run_setup(info, &settings, &effective_language, &hints);
         let decoder = match mode {
             LiveDecode::None => unreachable!("returned above"),
             LiveDecode::Stream => {

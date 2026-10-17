@@ -935,14 +935,96 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 }
 },
 /**
- * Checks if the Mac is a laptop by detecting battery presence
- * 
- * This uses pmset to check for battery information.
- * Returns true if a battery is detected (laptop), false otherwise (desktop)
+ * Stub implementation for non-macOS platforms
+ * Always returns false since laptop detection is macOS-specific
  */
 async isLaptop() : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("is_laptop") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getLearnedVocabulary() : Promise<Result<LearnedEntry[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_learned_vocabulary") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Add a spelling from the vocabulary manager (an explicit user action, so
+ * it is confirmed immediately).
+ */
+async addLearnedVocabulary(preferredText: string, aliases: string[], contextWords: string[], always: boolean) : Promise<Result<LearnedEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_learned_vocabulary", { preferredText, aliases, contextWords, always }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateLearnedVocabulary(id: number, update: LearnedEntryUpdate) : Promise<Result<LearnedEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_learned_vocabulary", { id, update }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteLearnedVocabulary(id: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_learned_vocabulary", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async exportLearnedVocabulary() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_learned_vocabulary") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async importLearnedVocabulary(json: string) : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_learned_vocabulary", { json }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getRecentCorrections(limit: number) : Promise<Result<CorrectionRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_recent_corrections", { limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeLearnedVocabularyEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_learned_vocabulary_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeCorrectionLlmEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_correction_llm_enabled_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeCorrectionRequireReadbackSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_correction_require_readback_setting", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1042,7 +1124,32 @@ long_form_chunking?: boolean;
  * not gated on this — that follows model capability. Migrated from the old
  * `overlay_position` (position `none` → style `None`).
  */
-overlay_style?: OverlayStyle }
+overlay_style?: OverlayStyle; 
+/**
+ * Lane A: apply learned vocabulary to every dictation before insertion.
+ */
+learned_vocabulary_enabled?: boolean; 
+/**
+ * Lane B: send instructions the local parser does not recognise to the
+ * configured LLM provider.
+ */
+correction_llm_enabled?: boolean; 
+/**
+ * Provider for correction instructions; `None` follows the
+ * post-processing provider.
+ */
+correction_provider_id?: string | null; 
+/**
+ * Model for correction instructions; `None` uses the provider's
+ * post-processing model.
+ */
+correction_model?: string | null; 
+/**
+ * Refuse to edit text whose selection cannot be read back (PLAN.md §9).
+ * Turning this off allows unverified edits on desktops where the
+ * clipboard cannot be read (some Wayland setups).
+ */
+correction_require_readback?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[] }
@@ -1057,6 +1164,7 @@ export type ChineseScript =
  */
 "as_transcribed" | "simplified" | "traditional"
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
+export type CorrectionRecord = { id: number; timestamp: number; app_id: string | null; operation: string; instruction: string; before_text: string; after_text: string; result: string; interpreter: string }
 export type CustomSounds = { start: boolean; stop: boolean }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
@@ -1076,6 +1184,23 @@ export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_
 key_down: number; key_up: number; flags_changed: number; mouse: number; duration_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
 export type LLMPrompt = { id: string; name: string; prompt: string }
+/**
+ * A learned spelling as shown in the vocabulary manager.
+ */
+export type LearnedEntry = { id: number; preferred_text: string; aliases: string[]; context_words: string[]; negative_context_words: string[]; 
+/**
+ * Replace aliases everywhere instead of only in supporting context.
+ */
+always: boolean; 
+/**
+ * Only apply in this application (lowercased executable name).
+ */
+app_scope: string | null; enabled: boolean; use_as_asr_hint: boolean; created_at: number; updated_at: number }
+export type LearnedEntryUpdate = { preferred_text: string | null; aliases: string[] | null; context_words: string[] | null; negative_context_words: string[] | null; always: boolean | null; 
+/**
+ * `Some("")` clears the app scope.
+ */
+app_scope: string | null; enabled: boolean | null; use_as_asr_hint: boolean | null }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }

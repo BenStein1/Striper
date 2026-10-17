@@ -534,8 +534,10 @@ pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
 }
 
+/// Bindings that record speech through the shared capture/ASR pipeline. The
+/// "correct" binding records a correction instruction instead of dictation.
 pub fn is_transcribe_binding(id: &str) -> bool {
-    id == "transcribe" || id == "transcribe_with_post_process"
+    id == "transcribe" || id == "transcribe_with_post_process" || id == "correct"
 }
 
 impl TranscriptionCoordinator {

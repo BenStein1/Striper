@@ -20,6 +20,12 @@ pub struct CliArgs {
     #[arg(long)]
     pub toggle_post_process: bool,
 
+    /// Toggle recording a spoken correction for the last dictation (sent to
+    /// running instance). Bind this to a desktop shortcut where global
+    /// hotkeys are unavailable (e.g. Wayland).
+    #[arg(long)]
+    pub toggle_correction: bool,
+
     /// Cancel the current operation (sent to running instance)
     #[arg(long)]
     pub cancel: bool,

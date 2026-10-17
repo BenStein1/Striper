@@ -535,10 +535,34 @@ pub struct AppSettings {
     /// `overlay_position` (position `none` → style `None`).
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
+    /// Lane A: apply learned vocabulary to every dictation before insertion.
+    #[serde(default = "default_true")]
+    pub learned_vocabulary_enabled: bool,
+    /// Lane B: send instructions the local parser does not recognise to the
+    /// configured LLM provider.
+    #[serde(default = "default_true")]
+    pub correction_llm_enabled: bool,
+    /// Provider for correction instructions; `None` follows the
+    /// post-processing provider.
+    #[serde(default)]
+    pub correction_provider_id: Option<String>,
+    /// Model for correction instructions; `None` uses the provider's
+    /// post-processing model.
+    #[serde(default)]
+    pub correction_model: Option<String>,
+    /// Refuse to edit text whose selection cannot be read back (PLAN.md §9).
+    /// Turning this off allows unverified edits on desktops where the
+    /// clipboard cannot be read (some Wayland setups).
+    #[serde(default = "default_true")]
+    pub correction_require_readback: bool,
 }
 
 fn default_model() -> String {
     "".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 const CURRENT_SETTINGS_SCHEMA_VERSION: u32 = 2;
@@ -568,7 +592,9 @@ fn default_autostart_enabled() -> bool {
 }
 
 fn default_update_checks_enabled() -> bool {
-    true
+    // Striper has no signed release feed yet; the upstream updater would
+    // fail signature checks (or offer Handy). Opt-in until it does.
+    false
 }
 
 fn default_show_whats_new_on_update() -> bool {
@@ -947,6 +973,23 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_post_process_shortcut.to_string(),
         },
     );
+    // Hold to speak a correction ("change Thursday to Friday"). Shares the
+    // microphone and recognizer with dictation; the result edits the last
+    // dictation instead of being typed.
+    #[cfg(target_os = "macos")]
+    let default_correct_shortcut = "control+option+space";
+    #[cfg(not(target_os = "macos"))]
+    let default_correct_shortcut = "ctrl+alt+space";
+    bindings.insert(
+        "correct".to_string(),
+        ShortcutBinding {
+            id: "correct".to_string(),
+            name: "Correct That".to_string(),
+            description: "Speak a correction to the text you just dictated.".to_string(),
+            default_binding: default_correct_shortcut.to_string(),
+            current_binding: default_correct_shortcut.to_string(),
+        },
+    );
     bindings.insert(
         "cancel".to_string(),
         ShortcutBinding {
@@ -1022,6 +1065,11 @@ pub fn get_default_settings() -> AppSettings {
         vad_backend: VadBackend::default(),
         long_form_chunking: default_long_form_chunking(),
         overlay_style: default_overlay_style(),
+        learned_vocabulary_enabled: true,
+        correction_llm_enabled: true,
+        correction_provider_id: None,
+        correction_model: None,
+        correction_require_readback: true,
     }
 }
 
@@ -1032,6 +1080,35 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
+    /// The provider, API key and model used to interpret correction
+    /// instructions, or `None` when none is configured.
+    pub fn correction_llm(&self) -> Option<(PostProcessProvider, String, String)> {
+        if !self.correction_llm_enabled {
+            return None;
+        }
+        let provider_id = self
+            .correction_provider_id
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .unwrap_or(&self.post_process_provider_id);
+        let provider = self.post_process_provider(provider_id)?.clone();
+        if provider.id == APPLE_INTELLIGENCE_PROVIDER_ID {
+            return None;
+        }
+        let model = self
+            .correction_model
+            .clone()
+            .filter(|m| !m.trim().is_empty())
+            .or_else(|| self.post_process_models.get(&provider.id).cloned())
+            .filter(|m| !m.trim().is_empty())?;
+        let api_key = self
+            .post_process_api_keys
+            .get(&provider.id)
+            .cloned()
+            .unwrap_or_default();
+        Some((provider, api_key, model))
+    }
+
     pub fn active_post_process_provider(&self) -> Option<&PostProcessProvider> {
         self.post_process_providers
             .iter()

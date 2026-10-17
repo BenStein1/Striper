@@ -57,6 +57,9 @@ pub trait ShortcutAction: Send + Sync {
 // Transcribe Action
 struct TranscribeAction {
     post_process: bool,
+    /// Striper Lane B: the recording is a spoken correction for the last
+    /// dictation, not text to insert.
+    correction: bool,
 }
 
 /// Field name for structured output JSON schema
@@ -355,9 +358,12 @@ pub(crate) async fn process_transcription_output(
     app: &AppHandle,
     transcription: &str,
     post_process: bool,
+    app_id: Option<&str>,
 ) -> ProcessedTranscription {
     let settings = get_settings(app);
-    let mut final_text = transcription.to_string();
+    // Learned spellings first: deterministic, local and fast, so they apply
+    // whether or not the optional LLM cleanup runs or succeeds.
+    let mut final_text = crate::striper::apply_learned_vocabulary(app, transcription, app_id);
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
 
@@ -602,6 +608,7 @@ impl ShortcutAction for TranscribeAction {
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
+        let correction = self.correction;
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
@@ -637,7 +644,7 @@ impl ShortcutAction for TranscribeAction {
                 } else {
                     // Save WAV concurrently with transcription
                     let sample_count = samples.len();
-                    let file_name = format!("handy-{}.wav", chrono::Utc::now().timestamp());
+                    let file_name = format!("striper-{}.wav", chrono::Utc::now().timestamp());
                     let wav_path = hm.recordings_dir().join(&file_name);
                     let wav_path_for_verify = wav_path.clone();
                     let samples_for_wav = samples.clone();
@@ -691,6 +698,20 @@ impl ShortcutAction for TranscribeAction {
                                 utils::redact_text(&transcription)
                             );
 
+                            if correction {
+                                if use_streaming_overlay {
+                                    tm.emit_stream_working(StreamWorkKind::Polishing);
+                                } else {
+                                    show_processing_overlay(&ah);
+                                }
+                                crate::striper::handle_instruction(ah.clone(), transcription).await;
+                                return;
+                            }
+
+                            // Where the text is going; recorded with the commit
+                            // and used to scope learned vocabulary.
+                            let target = crate::striper::focused_identity();
+
                             if post_process {
                                 if use_streaming_overlay {
                                     tm.emit_stream_working(StreamWorkKind::Polishing);
@@ -699,7 +720,12 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                                process_transcription_output(
+                                    &ah,
+                                    &transcription,
+                                    post_process,
+                                    target.app_id.as_deref(),
+                                ),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
@@ -717,6 +743,7 @@ impl ShortcutAction for TranscribeAction {
                                 return;
                             }
 
+                            let raw_transcription = transcription.clone();
                             // Save to history if WAV was saved
                             if wav_saved {
                                 if let Err(err) = hm.save_entry(
@@ -746,16 +773,28 @@ impl ShortcutAction for TranscribeAction {
                                         return;
                                     }
 
-                                    match utils::paste(final_text, ah_clone.clone()) {
-                                        Ok(()) => debug!(
-                                            "Text pasted successfully in {:?}",
-                                            paste_time.elapsed()
-                                        ),
-                                        Err(e) => {
-                                            error!("Failed to paste transcription: {}", e);
-                                            let _ = ah_clone.emit("paste-error", ());
-                                        }
-                                    }
+                                    let pasted =
+                                        match utils::paste(final_text.clone(), ah_clone.clone()) {
+                                            Ok(()) => {
+                                                debug!(
+                                                    "Text pasted successfully in {:?}",
+                                                    paste_time.elapsed()
+                                                );
+                                                true
+                                            }
+                                            Err(e) => {
+                                                error!("Failed to paste transcription: {}", e);
+                                                let _ = ah_clone.emit("paste-error", ());
+                                                false
+                                            }
+                                        };
+                                    crate::striper::record_commit(
+                                        &ah_clone,
+                                        &raw_transcription,
+                                        &final_text,
+                                        target,
+                                        pasted,
+                                    );
                                     utils::hide_recording_overlay(&ah_clone);
                                     set_tray_state(&ah_clone, TrayIconState::Idle);
                                 })
@@ -856,11 +895,22 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         "transcribe".to_string(),
         Arc::new(TranscribeAction {
             post_process: false,
+            correction: false,
         }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction {
+            post_process: true,
+            correction: false,
+        }) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        "correct".to_string(),
+        Arc::new(TranscribeAction {
+            post_process: false,
+            correction: true,
+        }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),

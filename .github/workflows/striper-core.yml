@@ -42,8 +42,14 @@ jobs:
       - uses: swatinem/rust-cache@v2
         if: steps.crate.outputs.present == 'true'
         with:
-          workspaces: "./crates/striper-core -> target"
+          workspaces: |
+            ./crates/striper-core -> target
+            ./crates/striper-platform -> target
 
       - name: Run striper-core tests
         if: steps.crate.outputs.present == 'true'
         run: cargo test --manifest-path crates/striper-core/Cargo.toml
+
+      - name: Run striper-platform tests
+        if: steps.crate.outputs.present == 'true'
+        run: cargo test --manifest-path crates/striper-platform/Cargo.toml

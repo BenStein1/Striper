@@ -22,6 +22,7 @@ mod secure_input;
 mod settings;
 mod shortcut;
 mod signal_handle;
+mod striper;
 mod transcription_coordinator;
 mod tray;
 mod tray_i18n;
@@ -212,6 +213,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    striper::init(app_handle);
     app_handle.manage(tray::TrayState::new());
 
     // Note: Shortcuts are NOT initialized here.
@@ -768,6 +770,16 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
+            striper::commands::get_learned_vocabulary,
+            striper::commands::add_learned_vocabulary,
+            striper::commands::update_learned_vocabulary,
+            striper::commands::delete_learned_vocabulary,
+            striper::commands::export_learned_vocabulary,
+            striper::commands::import_learned_vocabulary,
+            striper::commands::get_recent_corrections,
+            striper::commands::change_learned_vocabulary_enabled_setting,
+            striper::commands::change_correction_llm_enabled_setting,
+            striper::commands::change_correction_require_readback_setting,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
@@ -858,6 +870,8 @@ pub fn run(cli_args: CliArgs) {
                 signal_handle::send_transcription_input(app, "transcribe", "CLI");
             } else if args.iter().any(|a| a == "--toggle-post-process") {
                 signal_handle::send_transcription_input(app, "transcribe_with_post_process", "CLI");
+            } else if args.iter().any(|a| a == "--toggle-correction") {
+                signal_handle::send_transcription_input(app, "correct", "CLI");
             } else if args.iter().any(|a| a == "--cancel") {
                 crate::utils::cancel_current_operation(app);
             } else {
@@ -944,7 +958,7 @@ pub fn run(cli_args: CliArgs) {
             // for portable mode (redirects WebView2 cache to portable Data dir)
             let mut win_builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Handy")
+                    .title("Striper")
                     .inner_size(680.0, 570.0)
                     .min_inner_size(680.0, 570.0)
                     .resizable(true)

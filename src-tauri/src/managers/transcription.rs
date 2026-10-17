@@ -1032,7 +1032,8 @@ impl TranscriptionManager {
         validated_language: &str,
         active_model: &str,
     ) -> Result<RunOutcome> {
-        let setup = run_setup(&info, settings, validated_language);
+        let hints = crate::striper::asr_hints(&self.app_handle);
+        let setup = run_setup(&info, settings, validated_language, &hints);
         let whole = |pcm: Vec<f32>| {
             self.run_batch(mark, pcm, &setup.run_options, active_model)
                 .map_err(engine_error)
@@ -1146,7 +1147,12 @@ impl RunSetup {
 /// The loaded model's live capabilities (cheap GGUF-metadata reads) are the
 /// source of truth, not the ModelManager copy; translate is gated on what the
 /// model advertises.
-fn run_setup(info: &LoadedInfo, settings: &AppSettings, validated_language: &str) -> RunSetup {
+fn run_setup(
+    info: &LoadedInfo,
+    settings: &AppSettings,
+    validated_language: &str,
+    learned_hints: &[String],
+) -> RunSetup {
     let model_supports_translate = info.capabilities.supports_translate;
     let languages = info.capabilities.languages.clone();
     debug!(
@@ -1172,7 +1178,11 @@ fn run_setup(info: &LoadedInfo, settings: &AppSettings, validated_language: &str
         task: run_plan.task,
         language: run_plan.language,
         target_language: run_plan.target_language,
-        vocabulary: vocabulary_for_model(info.supports_vocabulary, &settings.custom_words),
+        vocabulary: vocabulary_for_model(
+            info.supports_vocabulary,
+            &settings.custom_words,
+            learned_hints,
+        ),
         ..Default::default()
     };
 
@@ -1412,15 +1422,25 @@ fn with_model_detected_language(
     }
 }
 
-/// Custom words for transcribe-cpp's `vocabulary` slot, in priority order.
+/// Custom words for transcribe-cpp's `vocabulary` slot, in priority order:
+/// the user's custom words, then spellings learned through corrections.
 /// Empty for models without Feature::Vocabulary, which would warn on every run
 /// and rely on fuzzy correction instead.
-fn vocabulary_for_model(supports_vocabulary: bool, custom_words: &[String]) -> Vec<String> {
-    if supports_vocabulary {
-        custom_words.to_vec()
-    } else {
-        Vec::new()
+fn vocabulary_for_model(
+    supports_vocabulary: bool,
+    custom_words: &[String],
+    learned_hints: &[String],
+) -> Vec<String> {
+    if !supports_vocabulary {
+        return Vec::new();
     }
+    let mut words = custom_words.to_vec();
+    for hint in learned_hints {
+        if !words.iter().any(|w| w.eq_ignore_ascii_case(hint)) {
+            words.push(hint.clone());
+        }
+    }
+    words
 }
 
 struct TranscribeCppRunPlan {

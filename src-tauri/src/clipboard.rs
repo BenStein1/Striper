@@ -14,7 +14,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 #[cfg(target_os = "linux")]
 use crate::utils::{is_gnome_wayland, is_kde_wayland, is_wayland};
 
-fn with_enigo<T>(
+pub(crate) fn with_enigo<T>(
     app_handle: &AppHandle,
     f: impl FnOnce(&mut Enigo) -> Result<T, String>,
 ) -> Result<T, String> {
@@ -28,7 +28,7 @@ fn with_enigo<T>(
     f(&mut enigo)
 }
 
-fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
+pub(crate) fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     if is_wayland() && is_wl_copy_available() {
         info!("Using wl-copy for clipboard write on Wayland");
@@ -266,7 +266,7 @@ pub fn get_available_typing_tools() -> Vec<String> {
 
 /// Check if wtype is available (Wayland text input tool)
 #[cfg(target_os = "linux")]
-fn is_wtype_available() -> bool {
+pub(crate) fn is_wtype_available() -> bool {
     Command::new("which")
         .arg("wtype")
         .output()
@@ -276,7 +276,7 @@ fn is_wtype_available() -> bool {
 
 /// Check if dotool is available (another Wayland text input tool)
 #[cfg(target_os = "linux")]
-fn is_dotool_available() -> bool {
+pub(crate) fn is_dotool_available() -> bool {
     Command::new("which")
         .arg("dotool")
         .output()
@@ -286,7 +286,7 @@ fn is_dotool_available() -> bool {
 
 #[cfg(target_os = "linux")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum YdotoolKeySyntax {
+pub(crate) enum YdotoolKeySyntax {
     Symbolic,
     RawKeycodes,
 }
@@ -320,7 +320,7 @@ fn classify_ydotool_key_syntax(help: &str) -> Option<YdotoolKeySyntax> {
 /// Detects and caches a recognized ydotool key syntax. Unknown or failed probes are not cached,
 /// allowing a transient daemon or PATH problem to recover on a later paste attempt.
 #[cfg(target_os = "linux")]
-fn detect_ydotool_key_syntax() -> YdotoolKeySyntax {
+pub(crate) fn detect_ydotool_key_syntax() -> YdotoolKeySyntax {
     if let Some(syntax) = YDOTOOL_KEY_SYNTAX.get() {
         return *syntax;
     }
@@ -360,7 +360,7 @@ fn detect_ydotool_key_syntax() -> YdotoolKeySyntax {
 
 /// Check if ydotool is available (uinput-based, works on both Wayland and X11)
 #[cfg(target_os = "linux")]
-fn is_ydotool_available() -> bool {
+pub(crate) fn is_ydotool_available() -> bool {
     Command::new("which")
         .arg("ydotool")
         .output()
@@ -369,7 +369,7 @@ fn is_ydotool_available() -> bool {
 }
 
 #[cfg(target_os = "linux")]
-fn is_xdotool_available() -> bool {
+pub(crate) fn is_xdotool_available() -> bool {
     Command::new("which")
         .arg("xdotool")
         .output()
@@ -389,7 +389,7 @@ fn is_kwtype_available() -> bool {
 
 /// Check if wl-copy is available (Wayland clipboard tool)
 #[cfg(target_os = "linux")]
-fn is_wl_copy_available() -> bool {
+pub(crate) fn is_wl_copy_available() -> bool {
     Command::new("which")
         .arg("wl-copy")
         .output()
@@ -708,7 +708,7 @@ fn paste_via_external_script(text: &str, script_path: &str) -> Result<(), String
 }
 
 /// Types text directly by simulating individual key presses.
-fn paste_direct(
+pub(crate) fn paste_direct(
     text: &str,
     app_handle: &AppHandle,
     #[cfg(target_os = "linux")] typing_tool: TypingTool,

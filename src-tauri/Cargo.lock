@@ -5994,6 +5994,8 @@ dependencies = [
  "signal-hook",
  "specta",
  "specta-typescript",
+ "striper-core",
+ "striper-platform",
  "strsim",
  "tauri",
  "tauri-build",
@@ -6019,6 +6021,27 @@ dependencies = [
  "whatlang",
  "windows 0.61.3",
  "winreg 0.55.0",
+]
+
+[[package]]
+name = "striper-core"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "rusqlite",
+ "rusqlite_migration",
+ "serde",
+ "serde_json",
+ "strsim",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "striper-platform"
+version = "0.1.0"
+dependencies = [
+ "windows 0.61.3",
+ "x11rb",
 ]
 
 [[package]]

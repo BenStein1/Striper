@@ -55,7 +55,7 @@ const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
 
 /// Overlay window size (logical) for a given UI state.
 fn overlay_dimensions(state: &str) -> (f64, f64) {
-    if state == "streaming" {
+    if state == "streaming" || state == "feedback" {
         (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
@@ -628,6 +628,35 @@ pub fn show_transcribing_overlay(app_handle: &AppHandle) {
 /// Shows the processing overlay window
 pub fn show_processing_overlay(app_handle: &AppHandle) {
     show_overlay_state(app_handle, "processing");
+}
+
+#[derive(Clone, serde::Serialize)]
+struct OverlayFeedback<'a> {
+    message: &'a str,
+    /// "success", "info" or "error".
+    kind: &'a str,
+}
+
+/// Show a short correction result ("Changed.", "I couldn't find …") in the
+/// overlay, then hide it unless something else has shown the overlay since.
+pub fn show_feedback_overlay(app_handle: &AppHandle, message: &str, kind: &str) {
+    let _ = app_handle.emit_to(
+        "recording_overlay",
+        "overlay-feedback",
+        OverlayFeedback { message, kind },
+    );
+    show_overlay_state(app_handle, "feedback");
+    let handle = app_handle.clone();
+    let linger = std::time::Duration::from_millis(if kind == "success" { 1800 } else { 4500 });
+    std::thread::spawn(move || {
+        // Let the main-thread show land before taking the generation.
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let shown = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
+        std::thread::sleep(linger);
+        if OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst) == shown {
+            hide_recording_overlay(&handle);
+        }
+    });
 }
 
 /// Updates the overlay window position based on current settings
