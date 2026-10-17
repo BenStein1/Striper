@@ -330,6 +330,7 @@ pub fn transcribe_instruction(
         struct Finished(AppHandle);
         impl Drop for Finished {
             fn drop(&mut self) {
+                crate::shortcut::unregister_cancel_shortcut(&self.0);
                 if let Some(tm) = self.0.try_state::<Arc<TranscriptionManager>>() {
                     tm.maybe_unload_immediately("voice correction");
                 }
@@ -339,6 +340,7 @@ pub fn transcribe_instruction(
             }
         }
         let _finished = Finished(app.clone());
+        crate::shortcut::register_cancel_shortcut(&app);
         report(&app, "processing", None);
         let tm = app.state::<Arc<TranscriptionManager>>().inner().clone();
         let result =
