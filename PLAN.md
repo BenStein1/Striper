@@ -1,10 +1,22 @@
-# Handy Voice Editor — Development Plan
+# Striper — Development Plan
 
 **Status:** Proposed / ready for implementation spike  
 **Date:** October 17, 2026  
 **Initial target:** Cross-platform fork developed primarily on Linux; first deployment Windows 11 with Handy + local Whisper and NVIDIA GTX 1080 (8 GB VRAM)  
 **Audience:** A Dragon NaturallySpeaking user on Windows and a Linux-based developer who also wants the tool available on Linux  
-**Working title:** Handy Voice Editor (name TBD)
+**Application name:** Striper (S-T-R-I-P-E-R), named for the striped bass; not “striped” or “stripper.”
+
+## 0. First acceptance test — Striper must remember its own name
+
+**Problem:** Dictating “Striper” may yield “striped” or “stripper.” This is a small but useful end-to-end test of the promised correction and persistent vocabulary features.
+
+1. During ordinary dictation, deliberately capture a misrecognized mention of the application's name, such as “I opened striped” or “launch stripper,” where the user really meant **Striper**.
+2. Say “correct that; I meant Striper, S-T-R-I-P-E-R; remember that” (or an equivalent natural correction). Striper should identify the intended prior text, preview or safely apply the edit, and save the spelling as an explicit user-taught proper name.
+3. Across later dictations and application restarts, recognize “Striper” in relevant contexts without making the user spell it again. Prefer a recognizer custom-word hint when available, with a validated post-transcription normalization fallback where necessary.
+4. **Do not globally replace** the valid English words “striped” or “stripper” in unrelated sentences. Context matters; when intent is uncertain, ask or leave the transcript unchanged.
+5. Confirm that undo/revert works, the saved preference can be reviewed or deleted, and the behavior is tested on Windows first and Linux afterward.
+
+This requirement is part of the first milestone, not a cosmetic cleanup. It proves the ASR -> correction -> persistent memory -> safe insertion loop while preserving normal dictation.
 
 ## 1. Mission
 
@@ -23,7 +35,7 @@ A correction such as “My first name is Stephen, S-T-E-P-H-E-N; remember that�
 - [ ] Activate correction mode by voice (“correct that”) without requiring rigid Dragon command syntax.
 - [ ] Understand edits such as “change Thursday to Friday,” “replace that question mark with a period,” “put two spaces after the sentence,” “scratch that,” and “undo that.”
 - [ ] Support follow-up commands in the same editing session: “Actually, make it Saturday.”
-- [ ] Remember learned names, spellings, and explicit user preferences across sessions.
+- [ ] Remember learned names, spellings, and explicit user preferences across sessions, beginning with the app's own name, **Striper**.
 - [ ] Make edits reversible and refuse unsafe/ambiguous edits rather than guessing.
 - [ ] Offer an **OpenAI-compatible** LLM endpoint (local or hosted); keep normal dictation working if it is unavailable.
 - [ ] Maintain one cross-platform core and platform-specific text-editing adapters for Windows and Linux.
