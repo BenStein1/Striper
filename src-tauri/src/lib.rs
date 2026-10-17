@@ -783,6 +783,9 @@ pub fn run(cli_args: CliArgs) {
             striper::commands::get_recent_corrections,
             striper::commands::change_learned_vocabulary_enabled_setting,
             striper::commands::change_correction_llm_enabled_setting,
+            striper::commands::change_correction_reasoning_effort_setting,
+            striper::commands::use_luna_correction_preset,
+            striper::commands::test_correction_ai,
             striper::commands::change_correction_require_readback_setting,
         ])
         .events(collect_events![

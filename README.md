@@ -517,3 +517,32 @@ The Striper artwork in [`assets/branding/`](assets/branding/) and the icons deri
 - **ggml** for an amazing cross-platform tensor library
 - **Silero** for great lightweight VAD
 - **Tauri** team for the excellent Rust-based app framework
+
+### Conversational AI correction
+
+Under **Vocabulary → AI provider**, click **Use GPT-6 Luna · Medium**, then enter
+an OpenAI API key in the provider settings, then click **Test AI correction** to
+see a sample rewrite without editing your desktop. This selects `gpt-6-luna` and sends
+`reasoning_effort: "medium"`. These provider/model settings are shared with Post
+Processing; normal dictation remains local. The app cannot infer your API credit
+balance or supply an API key.
+
+With AI configured, say “correct that” followed by a natural instruction such as
+“make that less formal, it's for my son”, “Steve is picking me up, not the other
+way around”, or “remove the part about the appointment”. The model proposes
+validated text edits; it cannot operate the desktop. “Undo that”, “done” and
+“cancel” remain local. Without AI setup, basic local correction commands still work.
+If AI fails or times out, Striper leaves the text unchanged instead of substituting
+a regex interpretation. Requests have a 45-second deadline.
+
+For a future provider such as merge.dev, the provider boundary remains replaceable:
+choose **Custom**, enter the service's documented OpenAI-compatible base URL,
+API key and model, and use **Provider default** reasoning if the endpoint does
+not support `reasoning_effort`. No merge.dev endpoint, availability or free quota
+is assumed or hard-coded; its protocol must be confirmed before connecting it.
+
+Before Dad's demo, try a short paragraph in Notepad (Windows) or Kate (Linux),
+request a tone rewrite, ask for a factual correction, then say “undo that”. Check
+**Recent corrections** for interpreter `llm`. Test unavailable credentials too:
+the error must leave the original text intact. Real model quality, microphone
+latency and desktop editing still require this end-to-end check.

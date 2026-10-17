@@ -25,7 +25,7 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 A fork of [Handy](https://github.com/cjpais/Handy) (Tauri 2: Rust backend, React frontend) for a Dragon user on Windows 11 with limited hand mobility. Two lanes share one microphone and one Whisper model:
 
 - **Lane A, dictation.** Hold Ctrl+Space, speak, release. Handy's pipeline, plus learned spellings applied before the text is pasted. Never touches the LLM.
-- **Lane B, correction.** Enable the local CPU listener in Vocabulary settings, then say “correct that” and what to change about recent dictation. Follow-ups remain voice-only for 30 seconds. Ctrl+Alt+Space (or `striper --toggle-correction`) is the fallback. A local parser handles common phrasings; an OpenAI-compatible LLM is asked only when the parser gives up. Either way the result is a small list of validated `EditOperation`s that Rust executes and verifies. The LLM never gets keystrokes, shell or desktop access.
+- **Lane B, correction.** Enable the local CPU listener in Vocabulary settings, then say “correct that” and what to change about recent dictation. Follow-ups remain voice-only for 30 seconds. Ctrl+Alt+Space (or `striper --toggle-correction`) is the fallback. When AI is configured, natural-language edits go to it first; only undo, finish and cancel stay local. Without AI configuration the local parser remains available for basic commands. Either way the result is a small list of validated `EditOperation`s that Rust executes and verifies. The LLM never gets keystrokes, shell or desktop access.
 
 ## October 17 continuation: voice activation
 
@@ -57,10 +57,18 @@ Synthetic 16 kHz speech probes triggered the actual Linux Vosk library for a sta
 
 Data lives in the app data dir (`com.benstein1.striper`): `settings_store.json` as in Handy, plus `striper.db` (SQLite) for vocabulary, audit log and edit transactions.
 
+## Conversational AI correction (2026-10-17)
+
+- AI owns natural-language edits whenever configured; local parsing is retained for offline/basic mode and instant undo/done/cancel. Do not restore parser-first routing for edits.
+- Vocabulary has a **Use GPT-6 Luna · Medium** preset (`gpt-6-luna`, explicit `reasoning_effort: medium`), a reasoning selector, and **Test AI correction**. The test sends only a synthetic sample and resolves returned operations in memory; no clipboard or desktop access.
+- Provider/key/model remain shared with Post Processing. The preset clears legacy correction overrides so the visible provider controls match it. Normal dictation remains local. Custom OpenAI-compatible base URLs remain available; merge.dev integration awaits verification of its actual endpoint/protocol and credentials.
+- Explicit reasoning effort is not silently dropped/retried. Provider default omits the effort parameter. Anthropic-format endpoints require Provider default. AI failures never fall back to regex edits; timeout is 45 seconds.
+- Local verification: 93 core tests; 20 LLM client tests via a temporary isolated harness importing the real client (mock provider settings; rustls transport); frontend type-check, lint, build, translations and formatting. Full native app is verified by CI separately. No live OpenAI call was made here; Ben must enter his API key and run Test AI correction before the desktop demo. New locale keys use English pending translation.
+
 ## How a correction runs
 
 1. The "correct" binding records and transcribes exactly like dictation (same coordinator, mic and model).
-2. `correction::handle_instruction` parses locally, else calls the LLM (15 s timeout; three failures in a row pause it for 5 minutes).
+2. `correction::handle_instruction` routes controls locally and edits to configured AI (45 s timeout; three failures in a row pause it for 5 minutes).
 3. On a blocking thread: wait for modifier keys to be released, check the focused window is still the one dictated into (`Ledger::check_target`), save the clipboard.
 4. `session::run_operations` resolves each operation against the ledger region (the last few dictations into that window), plans the smallest edit, and executes it: move left over the unchanged suffix, Shift+Left over the expected text, copy it and compare, then paste or delete, then select and compare again. A mismatch after the edit triggers one Ctrl+Z and a check that the original is back.
 5. Restore the clipboard, record the transaction, play a sound, show the overlay message, emit `correction-result`.

@@ -1022,6 +1022,18 @@ async changeLearnedVocabularyEnabledSetting(enabled: boolean) : Promise<Result<n
     else return { status: "error", error: e  as any };
 }
 },
+async changeCorrectionReasoningEffortSetting(effort: string | null): Promise<Result<null, string>> {
+    try { return { status: "ok", data: await TAURI_INVOKE("change_correction_reasoning_effort_setting", { effort }) }; }
+    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
+},
+async testCorrectionAi(): Promise<Result<string, string>> {
+    try { return { status: "ok", data: await TAURI_INVOKE("test_correction_ai") }; }
+    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
+},
+async useLunaCorrectionPreset(): Promise<Result<null, string>> {
+    try { return { status: "ok", data: await TAURI_INVOKE("use_luna_correction_preset") }; }
+    catch (e) { if (e instanceof Error) throw e; else return { status: "error", error: e as any }; }
+},
 async changeCorrectionLlmEnabledSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_correction_llm_enabled_setting", { enabled }) };
@@ -1151,7 +1163,8 @@ correction_provider_id?: string | null;
  * Model for correction instructions; `None` uses the provider's
  * post-processing model.
  */
-correction_model?: string | null; 
+correction_model?: string | null;
+correction_reasoning_effort?: string | null;
 /**
  * Refuse to edit text whose selection cannot be read back (PLAN.md §9).
  * Turning this off allows unverified edits on desktops where the

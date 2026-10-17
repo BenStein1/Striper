@@ -839,3 +839,46 @@ mod tests {
         assert_eq!(find_misrecognized("nothing alike here", "Stephen"), None);
     }
 }
+
+/// Session controls stay instantaneous/offline. With AI configured, all other
+/// instructions go to the model, even if a regex would have matched them.
+pub fn local_operations_for_mode(
+    parsed: Option<Vec<EditOperation>>,
+    ai_configured: bool,
+) -> Option<Vec<EditOperation>> {
+    parsed.filter(|ops| {
+        !ai_configured
+            || (!ops.is_empty()
+                && ops.iter().all(|op| {
+                    matches!(
+                        op,
+                        EditOperation::Cancel | EditOperation::Finish | EditOperation::UndoLastEdit
+                    )
+                }))
+    })
+}
+
+#[cfg(test)]
+mod routing_tests {
+    use super::*;
+    #[test]
+    fn ai_owns_edits_but_not_session_controls() {
+        let ctx = ParseContext {
+            region_text: "Meet Thursday",
+            last_edit: None,
+        };
+        for instruction in ["change Thursday to Friday", "scratch that"] {
+            let parsed = parse_instruction(instruction, &ctx);
+            assert!(parsed.is_some());
+            assert!(local_operations_for_mode(parsed.clone(), false).is_some());
+            assert!(local_operations_for_mode(parsed, true).is_none());
+        }
+        for instruction in ["undo that", "done", "cancel"] {
+            assert!(
+                local_operations_for_mode(parse_instruction(instruction, &ctx), true).is_some()
+            );
+        }
+        assert!(local_operations_for_mode(None, false).is_none());
+        assert!(local_operations_for_mode(Some(vec![]), true).is_none());
+    }
+}

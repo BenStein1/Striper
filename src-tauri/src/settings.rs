@@ -538,8 +538,7 @@ pub struct AppSettings {
     /// Lane A: apply learned vocabulary to every dictation before insertion.
     #[serde(default = "default_true")]
     pub learned_vocabulary_enabled: bool,
-    /// Lane B: send instructions the local parser does not recognise to the
-    /// configured LLM provider.
+    /// Lane B: use AI for natural-language edits when configured.
     #[serde(default = "default_true")]
     pub correction_llm_enabled: bool,
     /// Provider for correction instructions; `None` follows the
@@ -550,6 +549,9 @@ pub struct AppSettings {
     /// post-processing model.
     #[serde(default)]
     pub correction_model: Option<String>,
+    /// None uses the provider default; explicit effort must be honored.
+    #[serde(default)]
+    pub correction_reasoning_effort: Option<String>,
     /// Refuse to edit text whose selection cannot be read back (PLAN.md §9).
     /// Turning this off allows unverified edits on desktops where the
     /// clipboard cannot be read (some Wayland setups).
@@ -1072,6 +1074,7 @@ pub fn get_default_settings() -> AppSettings {
         correction_llm_enabled: true,
         correction_provider_id: None,
         correction_model: None,
+        correction_reasoning_effort: None,
         correction_require_readback: true,
         correction_listener_enabled: false,
     }

@@ -8,7 +8,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Upper bound on any text an operation may introduce.
-pub const MAX_OPERATION_TEXT: usize = 500;
+// Permit a rewrite of the 1,200-character prompt context with room to expand.
+pub const MAX_OPERATION_TEXT: usize = 2400;
 /// Upper bound on operations in one instruction.
 pub const MAX_OPERATIONS: usize = 4;
 
@@ -168,7 +169,10 @@ pub fn response_json_schema() -> serde_json::Value {
     let nullable_int = serde_json::json!({ "type": ["integer", "null"], "minimum": 1 });
     let op = |name: &str, props: serde_json::Value, required: &[&str]| {
         let mut properties = serde_json::Map::new();
-        properties.insert("op".into(), serde_json::json!({ "const": name }));
+        properties.insert(
+            "op".into(),
+            serde_json::json!({ "type": "string", "enum": [name] }),
+        );
         if let serde_json::Value::Object(p) = props {
             properties.extend(p);
         }
@@ -190,7 +194,7 @@ pub fn response_json_schema() -> serde_json::Value {
                 "items": { "anyOf": [
                     op("replace_text", serde_json::json!({"expected_text": text, "replacement_text": text, "occurrence": nullable_int}), &["expected_text", "replacement_text", "occurrence"]),
                     op("replace_punctuation", serde_json::json!({"expected_text": text, "replacement_text": text, "occurrence": nullable_int}), &["expected_text", "replacement_text", "occurrence"]),
-                    op("insert_text", serde_json::json!({"text": text, "position": {"enum": ["before", "after", "end", "start"]}, "anchor_text": nullable_text}), &["text", "position", "anchor_text"]),
+                    op("insert_text", serde_json::json!({"text": text, "position": {"type": "string", "enum": ["before", "after", "end", "start"]}, "anchor_text": nullable_text}), &["text", "position", "anchor_text"]),
                     op("delete_recent_dictation", serde_json::json!({}), &[]),
                     op("undo_last_edit", serde_json::json!({}), &[]),
                     op("remember_spelling", serde_json::json!({"preferred_text": text, "aliases": {"type": "array", "items": text, "maxItems": 8}, "context_words": {"type": "array", "items": text, "maxItems": 12}, "always": {"type": "boolean"}}), &["preferred_text", "aliases", "context_words", "always"]),
@@ -517,5 +521,23 @@ mod tests {
         assert!(instruction_requests_memory("always spell it Stephen"));
         assert!(!instruction_requests_memory("change Thursday to Friday"));
         assert!(!instruction_requests_memory("don't remember that spelling"));
+    }
+    #[test]
+    fn paragraph_rewrites_fit_within_bounded_context() {
+        let before = "Please join us for lunch tomorrow. ".repeat(25);
+        let after = "Come have lunch with us tomorrow! ".repeat(25);
+        assert!(before.chars().count() > 500);
+        let op = EditOperation::ReplaceText {
+            expected_text: before.clone(),
+            replacement_text: after.clone(),
+            occurrence: None,
+        };
+        validate_operation(&op).unwrap();
+        assert_eq!(
+            crate::edit::resolve_operation(&before, &op)
+                .unwrap()
+                .new_text,
+            after
+        );
     }
 }

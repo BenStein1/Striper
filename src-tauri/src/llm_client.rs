@@ -382,6 +382,31 @@ pub async fn send_chat_completion_with_schema(
     json_schema: Option<Value>,
     disable_reasoning: bool,
 ) -> Result<Option<String>, String> {
+    send_chat_completion_with_effort(
+        provider,
+        api_key,
+        model,
+        user_content,
+        system_prompt,
+        json_schema,
+        disable_reasoning,
+        None,
+    )
+    .await
+}
+
+/// Explicit effort is never silently discarded or retried at another effort.
+#[allow(clippy::too_many_arguments)]
+pub async fn send_chat_completion_with_effort(
+    provider: &PostProcessProvider,
+    api_key: String,
+    model: &str,
+    user_content: String,
+    system_prompt: Option<String>,
+    json_schema: Option<Value>,
+    disable_reasoning: bool,
+    effort: Option<&str>,
+) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
 
@@ -420,7 +445,22 @@ pub async fn send_chat_completion_with_schema(
     });
 
     let key = endpoint_key(provider, model);
-    let reasoning = if disable_reasoning && !is_known_rejected(&key) {
+    let reasoning = if let Some(effort) = effort {
+        if provider.id == "openrouter" {
+            ReasoningParams {
+                reasoning: Some(ReasoningConfig {
+                    effort: Some(effort.into()),
+                    exclude: Some(true),
+                }),
+                ..Default::default()
+            }
+        } else {
+            ReasoningParams {
+                reasoning_effort: Some(effort.into()),
+                ..Default::default()
+            }
+        }
+    } else if disable_reasoning && !is_known_rejected(&key) {
         reasoning_disable_params(provider)
     } else {
         ReasoningParams::default()
@@ -450,7 +490,8 @@ pub async fn send_chat_completion_with_schema(
 
     // A 400/422 on a request carrying reasoning-disable fields is almost always
     // the endpoint rejecting those fields — retry once without them.
-    if !status.is_success()
+    if effort.is_none()
+        && !status.is_success()
         && matches!(status.as_u16(), 400 | 422)
         && !request_body.reasoning.is_empty()
     {
@@ -962,5 +1003,86 @@ mod tests {
         )
         .await;
         assert!(result.unwrap_err().contains("truncated"));
+    }
+    #[tokio::test]
+    async fn correction_sends_medium_effort_and_schema_without_sampling_fields() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut bytes = Vec::new();
+            let body = loop {
+                let mut buffer = [0; 2048];
+                let n = stream.read(&mut buffer).await.unwrap();
+                assert!(n > 0);
+                bytes.extend_from_slice(&buffer[..n]);
+                if let Some(split) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&bytes[..split]);
+                    let length: usize = headers
+                        .lines()
+                        .find_map(|line| {
+                            let (name, value) = line.split_once(':')?;
+                            name.eq_ignore_ascii_case("content-length")
+                                .then(|| value.trim().parse().unwrap())
+                        })
+                        .unwrap();
+                    if bytes.len() >= split + 4 + length {
+                        break serde_json::from_slice::<Value>(
+                            &bytes[split + 4..split + 4 + length],
+                        )
+                        .unwrap();
+                    }
+                }
+            };
+            let response = r#"{"choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}"#;
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        response.len(),
+                        response
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            body
+        });
+        let result = send_chat_completion_with_effort(
+            &provider("custom", &format!("http://{address}")),
+            "test-key".into(),
+            "gpt-6-luna",
+            "make it casual".into(),
+            Some("return edits".into()),
+            Some(serde_json::json!({"type":"object"})),
+            false,
+            Some("medium"),
+        )
+        .await;
+        assert!(result.is_ok());
+        let body = server.await.unwrap();
+        assert_eq!(body["model"], "gpt-6-luna");
+        assert_eq!(body["reasoning_effort"], "medium");
+        assert_eq!(body["response_format"]["type"], "json_schema");
+        assert_eq!(body["messages"][0]["role"], "system");
+        assert!(body.get("temperature").is_none());
+        assert!(body.get("top_p").is_none());
+    }
+
+    #[tokio::test]
+    async fn explicit_effort_is_not_silently_removed_after_rejection() {
+        let url = serve_one_response("400 Bad Request", "unsupported effort").await;
+        let result = send_chat_completion_with_effort(
+            &provider("custom", &url),
+            "key".into(),
+            "model",
+            "hi".into(),
+            None,
+            None,
+            false,
+            Some("medium"),
+        )
+        .await;
+        assert!(result.unwrap_err().contains("400"));
     }
 }

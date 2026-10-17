@@ -8,6 +8,7 @@ import { useSettings } from "../../../hooks/useSettings";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { Dropdown } from "../../ui/Dropdown";
 import { Input } from "../../ui/Input";
 import { Button } from "../../ui/Button";
 import { ShortcutInput } from "../ShortcutInput";
@@ -284,7 +285,11 @@ const RecentCorrections: React.FC<{ records: CorrectionRecord[] }> = ({
 
 export const VocabularySettings: React.FC = () => {
   const { t } = useTranslation();
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const { getSetting, updateSetting, isUpdating, refreshSettings } =
+    useSettings();
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState("");
   const [entries, setEntries] = useState<LearnedEntry[]>([]);
   const [records, setRecords] = useState<CorrectionRecord[]>([]);
 
@@ -388,7 +393,107 @@ export const VocabularySettings: React.FC = () => {
           title={t("settings.vocabulary.provider.title")}
           description={t("settings.vocabulary.provider.description")}
         >
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-sm text-mid-gray">
+              {t("settings.vocabulary.provider.setup")}
+            </p>
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={presetBusy}
+              onClick={async () => {
+                setPresetBusy(true);
+                try {
+                  const result = await commands.useLunaCorrectionPreset();
+                  if (result.status === "error") {
+                    toast.error(result.error);
+                    return;
+                  }
+                  await refreshSettings();
+                  toast.success(
+                    t("settings.vocabulary.provider.presetApplied"),
+                  );
+                } catch (error) {
+                  toast.error(String(error));
+                } finally {
+                  setPresetBusy(false);
+                }
+              }}
+            >
+              {t("settings.vocabulary.provider.lunaPreset")}
+            </Button>
+          </div>
           <PostProcessingSettingsApi />
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-sm text-mid-gray">
+              {t("settings.vocabulary.provider.testHelp")}
+            </p>
+            <Button
+              variant="secondary"
+              size="md"
+              disabled={testBusy || presetBusy}
+              onClick={async () => {
+                setTestBusy(true);
+                setTestResult("");
+                try {
+                  const result = await commands.testCorrectionAi();
+                  if (result.status === "error") {
+                    toast.error(result.error);
+                    return;
+                  }
+                  setTestResult(result.data);
+                } catch (error) {
+                  toast.error(String(error));
+                } finally {
+                  setTestBusy(false);
+                }
+              }}
+            >
+              {t(
+                testBusy
+                  ? "settings.vocabulary.provider.testing"
+                  : "settings.vocabulary.provider.test",
+              )}
+            </Button>
+            {testResult && (
+              <p
+                role="status"
+                className="text-sm whitespace-pre-wrap break-words"
+              >
+                {testResult}
+              </p>
+            )}
+          </div>
+          <SettingContainer
+            title={t("settings.vocabulary.provider.reasoning")}
+            description={t("settings.vocabulary.provider.reasoningHelp")}
+            grouped={true}
+          >
+            <Dropdown
+              selectedValue={
+                getSetting("correction_reasoning_effort") ?? "default"
+              }
+              disabled={isUpdating("correction_reasoning_effort")}
+              onSelect={(value) =>
+                updateSetting(
+                  "correction_reasoning_effort",
+                  value === "default" ? null : value,
+                )
+              }
+              options={[
+                "default",
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+              ].map((value) => ({
+                value,
+                label: t(`settings.vocabulary.provider.efforts.${value}`),
+              }))}
+            />
+          </SettingContainer>
         </SettingsGroup>
       )}
 

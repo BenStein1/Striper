@@ -264,3 +264,95 @@ pub fn change_correction_require_readback_setting(
     settings::write_settings(&app, s);
     Ok(())
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_correction_reasoning_effort_setting(
+    app: AppHandle,
+    state: State<'_, Arc<StriperState>>,
+    effort: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref value) = effort {
+        if !["none", "low", "medium", "high", "xhigh", "max"].contains(&value.as_str()) {
+            return Err("Unsupported reasoning effort".into());
+        }
+    }
+    let mut s = settings::get_settings(&app);
+    s.correction_reasoning_effort = effort;
+    settings::write_settings(&app, s);
+    state
+        .llm_failures
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    state
+        .llm_paused_until_ms
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+/// Configure the requested model without changing or exposing any API keys.
+#[tauri::command]
+#[specta::specta]
+pub fn use_luna_correction_preset(
+    app: AppHandle,
+    state: State<'_, Arc<StriperState>>,
+) -> Result<(), String> {
+    let mut s = settings::get_settings(&app);
+    s.post_process_provider_id = "openai".into();
+    s.post_process_models
+        .insert("openai".into(), "gpt-6-luna".into());
+    s.correction_provider_id = None;
+    s.correction_model = None;
+    s.correction_llm_enabled = true;
+    s.correction_reasoning_effort = Some("medium".into());
+    settings::write_settings(&app, s);
+    state
+        .llm_failures
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    state
+        .llm_paused_until_ms
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+/// Exercise the real provider with synthetic text; never touch a desktop target.
+#[tauri::command]
+#[specta::specta]
+pub async fn test_correction_ai(
+    app: AppHandle,
+    state: State<'_, Arc<StriperState>>,
+) -> Result<String, String> {
+    let (_, _, model) = settings::get_settings(&app)
+        .correction_llm()
+        .ok_or("Choose an AI provider and model first.")?;
+    state
+        .llm_failures
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    state
+        .llm_paused_until_ms
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    let ops = super::correction::interpret_with_llm(
+        &app,
+        &state,
+        "Make this less formal for my son. Keep the same plans.",
+        "I would be delighted to accompany you to lunch tomorrow.",
+        "I would be delighted to accompany you to lunch tomorrow.",
+        &[],
+    )
+    .await?;
+    if !ops
+        .iter()
+        .any(striper_core::command::EditOperation::edits_text)
+    {
+        return Err(
+            "The provider replied, but did not propose a text revision. Check the selected model."
+                .into(),
+        );
+    }
+    let mut revised = "I would be delighted to accompany you to lunch tomorrow.".to_string();
+    for op in &ops {
+        revised = striper_core::edit::resolve_operation(&revised, op)
+            .map_err(|e| format!("The provider returned an unusable sample edit: {e}"))?
+            .new_text;
+    }
+    Ok(format!("{model}: {revised}"))
+}

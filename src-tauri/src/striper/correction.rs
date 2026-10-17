@@ -3,7 +3,7 @@
 //!
 //! The instruction is recorded and transcribed by the same capture and
 //! recognizer as dictation (the "correct" binding). Interpretation is local
-//! and deterministic first; only unrecognised instructions go to the
+//! for session controls; natural-language edits go to the
 //! configured OpenAI-compatible LLM, which can only return operations from
 //! the closed set in `striper_core::command`. Execution then checks the
 //! focused window, selects exactly the expected text, reads it back, and
@@ -28,7 +28,7 @@ use striper_core::session::{
 use striper_core::store::{now_secs, EditTransactionRecord};
 use tauri::{AppHandle, Emitter, Manager};
 
-const LLM_TIMEOUT: Duration = Duration::from_secs(15);
+const LLM_TIMEOUT: Duration = Duration::from_secs(45);
 /// After this many consecutive interpreter failures, stop calling it for a while.
 const LLM_FAILURE_LIMIT: u32 = 3;
 const LLM_PAUSE_MS: u64 = 5 * 60 * 1000;
@@ -114,9 +114,9 @@ fn simple_result(
     }
 }
 
-/// Ask the configured LLM to interpret an instruction the local parser did
-/// not recognise. Returns validated operations or a user-facing reason.
-async fn interpret_with_llm(
+/// Interpret natural-language edits with the configured AI. Returns validated
+/// operations or a user-facing reason; never falls back after an AI failure.
+pub(super) async fn interpret_with_llm(
     app: &AppHandle,
     state: &StriperState,
     instruction: &str,
@@ -126,15 +126,20 @@ async fn interpret_with_llm(
 ) -> Result<Vec<EditOperation>, String> {
     let settings = crate::settings::get_settings(app);
     let Some((provider, api_key, model)) = settings.correction_llm() else {
-        return Err("I didn't understand that. Try \"change Thursday to Friday\", \"scratch that\" or \"undo that\". (No AI provider is configured for other instructions.)".into());
+        return Err("Set up an AI provider and model under Vocabulary to use natural-language correction. Basic local commands and undo remain available.".into());
     };
     if now_ms() < state.llm_paused_until_ms.load(Ordering::SeqCst) {
         return Err(
-            "I didn't understand that, and the AI interpreter is paused after repeated errors."
+            "AI correction is paused for five minutes after repeated errors. Check your provider settings; reselect the reasoning setting to retry now."
                 .into(),
         );
     }
 
+    if provider.api_format == crate::settings::PostProcessApiFormat::Anthropic
+        && settings.correction_reasoning_effort.is_some()
+    {
+        return Err("Select Provider default reasoning for Anthropic-format endpoints.".into());
+    }
     let user = build_user_message(instruction, region, last_dictation, previous);
     let system = system_prompt();
     let request = async {
@@ -144,21 +149,22 @@ async fn interpret_with_llm(
                 api_key,
                 &model,
                 format!("{system}\n\n{user}"),
-                true,
+                false,
             )
             .await
         } else {
             let schema = provider
                 .supports_structured_output
                 .then(response_json_schema);
-            crate::llm_client::send_chat_completion_with_schema(
+            crate::llm_client::send_chat_completion_with_effort(
                 &provider,
                 api_key,
                 &model,
                 user,
                 Some(system),
                 schema,
-                true,
+                false,
+                settings.correction_reasoning_effort.as_deref(),
             )
             .await
         }
@@ -304,7 +310,12 @@ pub async fn handle_instruction_guarded(
         region_text: &region,
         last_edit,
     };
-    let (ops, interpreter) = match parse_instruction(&instruction, &parse_ctx) {
+    let parsed = parse_instruction(&instruction, &parse_ctx);
+    let ai_configured = crate::settings::get_settings(&app)
+        .correction_llm()
+        .is_some();
+    let local = striper_core::parser::local_operations_for_mode(parsed, ai_configured);
+    let (ops, interpreter) = match local {
         Some(ops) => (ops, "local"),
         None => match interpret_with_llm(
             &app,

@@ -664,12 +664,29 @@
         },
         "llm": {
           "label": "Use AI for Unrecognized Commands",
-          "description": "Send the spoken command and the recent dictation to the AI provider when the built-in parser does not understand it. Dictation keeps working when the provider is offline."
+          "description": "Use AI to understand natural-language corrections and rewrites. When configured, edits go to AI; undo, done and cancel stay local. Recent dictated text and edit history are sent to the selected provider."
         }
       },
       "provider": {
         "title": "Correction AI Provider",
-        "description": "Shared with Post Process. Any OpenAI-compatible endpoint works, including a local server."
+        "description": "Correction uses the provider, API key and model below, shared with Post Processing. Ordinary dictation stays local.",
+        "setup": "Choose a provider and enter its API key. The Luna preset selects OpenAI and GPT-6 Luna with medium reasoning; it also updates the shared Post Processing model. For another compatible service, select Custom and enter its base URL, key and model.",
+        "lunaPreset": "Use GPT-6 Luna · Medium",
+        "presetApplied": "Luna with medium reasoning selected. Enter your OpenAI API key below.",
+        "reasoning": "Correction reasoning",
+        "reasoningHelp": "Medium is the requested Luna setting. Use Provider default for endpoints that do not accept reasoning_effort. Explicit effort is never silently dropped; unsupported settings show an error.",
+        "efforts": {
+          "default": "Provider default",
+          "none": "None",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "xhigh": "Extra high",
+          "max": "Maximum"
+        },
+        "test": "Test AI correction",
+        "testing": "Testing AI…",
+        "testHelp": "Send a sample sentence for a casual rewrite. Uses a small API request; never reads or edits your desktop."
       },
       "add": {
         "title": "Teach a Spelling",

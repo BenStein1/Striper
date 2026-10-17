@@ -169,6 +169,8 @@ const settingUpdaters: {
     commands.changeAppendTrailingSpaceSetting(value as boolean),
   learned_vocabulary_enabled: (value) =>
     commands.changeLearnedVocabularyEnabledSetting(value as boolean),
+  correction_reasoning_effort: (value) =>
+    commands.changeCorrectionReasoningEffortSetting(value as string | null),
   correction_llm_enabled: (value) =>
     commands.changeCorrectionLlmEnabledSetting(value as boolean),
   correction_require_readback: (value) =>
