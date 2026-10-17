@@ -44,6 +44,9 @@ jobs:
       - name: Test portable installer helpers
         run: bun src/components/update-checker/portableInstaller.test.ts
 
+      - name: Test model search and sorting
+        run: bun src/lib/utils/modelSearch.test.ts
+
       - name: Run ESLint
         run: bun run lint
 

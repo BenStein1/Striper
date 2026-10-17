@@ -67,7 +67,7 @@ export const AccelerationSelector: FC<AccelerationSelectorProps> = ({
               : `${dev.total_vram_mb} MB`;
           opts.push({
             value: `gpu:${dev.id}`,
-            label: `${dev.name} (${vramLabel})`,
+            label: `${dev.name} · ${dev.backend} (${vramLabel})`,
           });
         }
       }

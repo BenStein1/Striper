@@ -1,3 +1,5 @@
+import { filterAndSortModels } from "@/lib/utils/modelSearch";
+import { ModelComputeSummary } from "../model-selector/ModelComputeInfo";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,7 +23,7 @@ const Onboarding: React.FC<OnboardingProps> = ({
   onBack,
   preview = false,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     models,
     downloadModel,
@@ -34,6 +36,7 @@ const Onboarding: React.FC<OnboardingProps> = ({
   } = useModelStore();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const hasStartedSelection = useRef(false);
 
   const isBusy = selectedModelId !== null;
@@ -44,13 +47,21 @@ const Onboarding: React.FC<OnboardingProps> = ({
   // are the featured picks — currently Parakeet Unified (English) and Nemotron
   // Streaming (multilingual). Everything else hides behind "Show all".
   const { downloadable, topPicks, otherRecommended, rest } = useMemo(() => {
-    const downloadable = models.filter(
+    const sortedModels = filterAndSortModels(
+      models,
+      searchQuery,
+      t,
+      i18n.resolvedLanguage,
+    );
+    const downloadable = sortedModels.filter(
       (m: ModelInfo) => !m.is_downloaded && !isLegacySource(m),
     );
-    const recommended = downloadable.filter((m: ModelInfo) => m.is_recommended);
-    // `models` arrives in editorial rank order (the backend sorts by rank_of,
-    // then accuracy), so keep that order here: ranked-but-not-recommended models
-    // surface first, then the unranked tail by accuracy.
+    const recommended = models.filter(
+      (m) =>
+        m.is_recommended &&
+        downloadable.some((candidate) => candidate.id === m.id),
+    );
+    // Preserve the small featured set; the full catalog is alphabetical and searchable.
     const rest = downloadable.filter((m: ModelInfo) => !m.is_recommended);
     return {
       downloadable,
@@ -58,14 +69,19 @@ const Onboarding: React.FC<OnboardingProps> = ({
       otherRecommended: recommended.slice(2),
       rest,
     };
-  }, [models]);
+  }, [models, searchQuery, t, i18n.resolvedLanguage]);
 
-  const existingModels = models.filter((m: ModelInfo) => m.is_downloaded);
+  const existingModels = filterAndSortModels(
+    models.filter((m) => m.is_downloaded),
+    searchQuery,
+    t,
+    i18n.resolvedLanguage,
+  );
 
   const hasRecommended = topPicks.length > 0 || otherRecommended.length > 0;
   // When nothing recommended remains to download (e.g. all already on disk),
   // there is no curated subset to collapse, so just show the full list.
-  const showRest = showAll || !hasRecommended;
+  const showRest = showAll || !hasRecommended || searchQuery.trim().length > 0;
 
   // Watch for the selected model to finish downloading + verifying
   useEffect(() => {
@@ -183,6 +199,22 @@ const Onboarding: React.FC<OnboardingProps> = ({
 
       <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
         <div className="space-y-6 pb-6">
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={t("settings.models.searchPlaceholder")}
+            aria-label={t("settings.models.searchPlaceholder")}
+            className="w-full px-3 py-2 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-logo-primary"
+          />
+          <div className="text-start">
+            <ModelComputeSummary />
+          </div>
+          {existingModels.length === 0 && downloadable.length === 0 && (
+            <p className="text-sm text-text/60">
+              {t("settings.models.noModelsMatch")}
+            </p>
+          )}
           {existingModels.length > 0 && (
             <div className="space-y-3">
               <div className="text-left">

@@ -24,7 +24,7 @@ The process is entirely local:
 - Silence is filtered using VAD (Voice Activity Detection) with Silero
 - Transcription uses your choice of models:
   - **Whisper models** (Small/Medium/Turbo/Large) with GPU acceleration when available
-  - **Parakeet** - CPU-optimized model with excellent performance and automatic language detection
+  - **Parakeet** - Fast transcription with CPU or GPU execution through the current GGUF engine; language support depends on the variant
 - Works on Windows and Linux (macOS builds from source)
 
 ### Voice correction
@@ -38,6 +38,16 @@ The CPU listener pauses during ordinary dictation, so the words “correct that�
 Use **Vocabulary → Correction compatibility** to check the desktop and helper tools. See [Linux testing](docs/LINUX_TESTING.md) for a desktop/VM test sequence. Installer packaging is manual so routine commits do not launch long native installer builds.
 
 Voice activation still needs testing with the actual user's microphone and applications. See [the handoff](docs/AI_HANDOFF.md) for the current verification status.
+
+### Choosing a model and hardware
+
+For English dictation, start with **Parakeet Unified EN 0.6B** (the catalog's default Q8_0 download). It is not CPU-only in this version of Striper: transcription uses `transcribe-cpp`, with Vulkan GPU support in the Linux and Windows x64 builds. No separate “CUDA model” is needed. A GPU-capable model can also run on CPU; speed depends on your hardware and audio, and has not been benchmarked on your machine.
+
+On an NVIDIA desktop, open **Advanced → Hardware Acceleration** and select the detected GPU (the menu includes its backend), or use **Auto** for GPU preference with CPU fallback. Load the model and check **Loaded engine** in the model picker or Models page: it reports the worker's actual CPU/GPU, backend and device. A detected GPU or saved preference alone does not prove GPU execution. The status refreshes on model load/unload and when the app regains focus. The separate voice-command listener runs on CPU regardless of the transcription setting.
+
+**Whisper Large v3 Turbo** is another useful model to compare on an RTX 4090; this is its catalog name, not “Whisper Medium Turbo.” Use the default Q8_0 download first. Compare the same short dictations for accuracy and delay before choosing a default for Dad's Windows PC; results on the 4090 do not establish performance on his GPU.
+
+Search model names in setup, **Models**, or the footer switcher. Full model lists are alphabetical (the small featured onboarding recommendations keep their curated order); search accepts multiple words such as `whisper turbo` or `parakeet unified`. Provider/AI model menus are also alphabetical and retain their existing type-to-search behavior.
 
 ## Quick Start
 
@@ -202,6 +212,35 @@ On **Plasma Wayland**:
 4. Restart Striper if its environment changed, then refresh **Vocabulary → Correction compatibility**. Running `kdotool getactivewindow` in Konsole should return the current foreground window ID (normally Konsole's); this checks foreground queries, not input injection. Test an actual paste and correction in Kate before enabling the ambient listener.
 
 Without a working foreground-window ID, ambient voice correction cannot activate. The explicit correction shortcut remains available, with source-selection readback required by default. If helpers are not yet configured and your login screen offers X11, sign out and select a Plasma X11 session for the initial test, then install `xdotool` there. See [Linux testing](docs/LINUX_TESTING.md) for the compatibility limits.
+
+##### Ubuntu 25.10 / Plasma 6: initial Wayland test setup
+
+For the Ubuntu `ydotool` **0.1.8** package, install the matching daemon and build a Plasma 6-compatible foreground helper:
+
+```bash
+sudo apt install wl-clipboard ydotool ydotoold acl libdbus-1-dev &&
+env -u LD_LIBRARY_PATH -u LD_PRELOAD cargo install --git https://github.com/jinliu/kdotool --tag v0.3.0 --locked
+```
+
+For a test in the current login, start the input daemon as your normal user:
+
+```bash
+sudo modprobe uinput &&
+sudo setfacl -m "u:$(id -un):rw" /dev/uinput &&
+ydotoold
+```
+
+Leave this terminal open. The ACL grants your user access to the virtual-input device; this test setup is temporary and does not create an autostart service. Device recreation/reboot may require applying it again. Version 0.1.8 uses a different socket/CLI setup from modern ydotool, so do not mix in newer daemon flags. Do not start another daemon if one is already serving the desktop.
+
+In a second Konsole window, launch Striper from the clone:
+
+```bash
+export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+cd ~/Projects/Striper &&
+env -u LD_LIBRARY_PATH -u LD_PRELOAD bun run tauri dev
+```
+
+If a terminal has inherited third-party libraries (for example Topaz's Qt libraries), check Plasma with `env -u LD_LIBRARY_PATH -u LD_PRELOAD plasmashell --version`. These per-command overrides do not change the parent shell or the other application's setup. Refresh **Vocabulary → Correction compatibility** and test in Kate. Configure the Plasma dictation shortcut using `striper --toggle-transcription` for an installed package; when running only a development build, use that build's absolute executable path instead (usually `~/Projects/Striper/src-tauri/target/debug/striper`, with `~` expanded to your home directory).
 
 **Other Notes:**
 

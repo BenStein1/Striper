@@ -1756,6 +1756,7 @@ fn resolve_gpu_device(
 pub struct GpuDeviceOption {
     pub id: String,
     pub name: String,
+    pub backend: String,
     pub total_vram_mb: usize,
 }
 
@@ -1803,6 +1804,7 @@ fn gpu_device_options(engine: &EngineSupervisor) -> Vec<GpuDeviceOption> {
         .map(|d| GpuDeviceOption {
             id: d.key.clone(),
             name: d.label().to_string(),
+            backend: d.kind.clone(),
             total_vram_mb: (d.memory_total / (1024 * 1024)) as usize,
         })
         .collect()
@@ -1812,15 +1814,24 @@ fn gpu_device_options(engine: &EngineSupervisor) -> Vec<GpuDeviceOption> {
 pub struct AvailableAccelerators {
     pub transcribe: Vec<String>,
     pub gpu_devices: Vec<GpuDeviceOption>,
+    /// Runtime facts from the loaded worker, not the requested preference.
+    pub active_backend: Option<String>,
+    pub active_device: Option<String>,
+    pub active_on_gpu: Option<bool>,
 }
 
 /// Return the accelerators available to this process on its current host.
 pub fn get_available_accelerators(tm: &TranscriptionManager) -> AvailableAccelerators {
     let transcribe_options = available_transcribe_accelerators(transcribe_gpu_disabled_for_host());
 
+    let gpu_devices = gpu_device_options(&tm.engine);
+    let loaded = tm.engine.loaded();
     AvailableAccelerators {
         transcribe: transcribe_options,
-        gpu_devices: gpu_device_options(&tm.engine),
+        gpu_devices,
+        active_backend: loaded.as_ref().map(|info| info.backend.clone()),
+        active_device: loaded.as_ref().map(|info| info.device.clone()),
+        active_on_gpu: loaded.as_ref().map(|info| info.on_gpu),
     }
 }
 

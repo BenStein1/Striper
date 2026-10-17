@@ -11,6 +11,12 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 - Vocabulary now includes a read-only compatibility panel and a copyable diagnostic report. It reports helper detection separately from working device/compositor permissions.
 - KDE idle focus checks use one minimal query at most four times per second. Every kdotool query is bounded to 250 ms; edit-time focus checks stay uncached and fail when a previously known window becomes unobservable.
 
+## Model picker and compute visibility
+
+- Model setup, the Models catalog, and the downloaded-model footer picker support search and alphabetical model lists. The small featured onboarding recommendations retain curation; matching full-catalog results are visible while searching. Provider model menus are alphabetical too.
+- Parakeet Unified EN 0.6B is the first English model to try on Ben's RTX 4090. The current unified GGUF engine supports GPU execution; Linux/Windows x64 compile Vulkan, not CUDA. Do not repeat the old CPU-only Parakeet description or promise measured speed on either user's hardware.
+- Hardware menus and detected GPU summaries include the backend. The model picker/Models page report the worker's actual bound CPU/GPU, backend and device, separately from saved preference and detected devices. Refresh follows model lifecycle events and app focus; no GPU execution has been verified on Ben's desktop merely by adding this status.
+
 ## What Striper is
 
 A fork of [Handy](https://github.com/cjpais/Handy) (Tauri 2: Rust backend, React frontend) for a Dragon user on Windows 11 with limited hand mobility. Two lanes share one microphone and one Whisper model:

@@ -207,7 +207,12 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     // Ensure current model is in the list
     upsert(model);
 
-    return options;
+    return options.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
   }, [availableModelsRaw, model]);
 
   const isBaseUrlUpdating = isUpdating(

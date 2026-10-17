@@ -1160,7 +1160,7 @@ correction_model?: string | null;
 correction_require_readback?: boolean; correction_listener_enabled?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
-export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[] }
+export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[]; active_backend: string | null; active_device: string | null; active_on_gpu: boolean | null }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 /**
  * Script applied to Mandarin and Cantonese output. Other languages are never
@@ -1174,7 +1174,7 @@ export type ChineseScript =
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
 export type CorrectionRecord = { id: number; timestamp: number; app_id: string | null; operation: string; instruction: string; before_text: string; after_text: string; result: string; interpreter: string }
 export type CustomSounds = { start: boolean; stop: boolean }
-export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
+export type GpuDeviceOption = { id: string; name: string; backend: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 /**

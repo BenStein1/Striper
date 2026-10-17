@@ -234,6 +234,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
             models={models}
             currentModelId={displayModelId}
             onModelSelect={handleModelSelect}
+            onClose={() => {
+              setShowModelDropdown(false);
+              dropdownRef.current
+                ?.querySelector<HTMLButtonElement>("button")
+                ?.focus();
+            }}
           />
         )}
       </div>

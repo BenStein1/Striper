@@ -21,6 +21,7 @@ import {
   getUniqueCapabilityLanguages,
 } from "../../lib/constants/languages";
 import Badge from "../ui/Badge";
+import { ModelComputeBadge } from "../model-selector/ModelComputeInfo";
 import { Button } from "../ui/Button";
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -226,6 +227,8 @@ const ModelCard: React.FC<ModelCardProps> = ({
       </div>
 
       <hr className="w-full border-mid-gray/20" />
+
+      <ModelComputeBadge />
 
       {/* Bottom row: tags + action buttons (full width) */}
       <div className="flex items-center gap-3 w-full -mb-0.5 mt-0.5 h-5">

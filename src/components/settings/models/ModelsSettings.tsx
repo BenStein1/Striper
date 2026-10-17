@@ -19,6 +19,8 @@ import {
   supportsLanguageCode,
 } from "@/lib/constants/languages.ts";
 import type { ModelInfo } from "@/bindings";
+import { filterAndSortModels } from "@/lib/utils/modelSearch";
+import { ModelComputeSummary } from "@/components/model-selector/ModelComputeInfo";
 
 // check if model supports a language based on its supported_languages list
 const modelSupportsLanguage = (model: ModelInfo, langCode: string): boolean => {
@@ -32,7 +34,7 @@ const isLegacyModel = (model: ModelInfo): boolean =>
   typeof model.source === "object" && "Url" in model.source;
 
 export const ModelsSettings: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [switchingModelId, setSwitchingModelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStreaming, setFilterStreaming] = useState(false);
@@ -174,8 +176,12 @@ export const ModelsSettings: React.FC = () => {
 
   // Filter models by search query (name + description), language filter, and toggles
   const filteredModels = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return models.filter((model: ModelInfo) => {
+    return filterAndSortModels(
+      models,
+      searchQuery,
+      t,
+      i18n.resolvedLanguage,
+    ).filter((model: ModelInfo) => {
       // Hide deprecated legacy (.bin) downloads unless already on disk.
       if (isLegacyModel(model) && !model.is_downloaded) return false;
       if (languageFilter !== "all") {
@@ -184,13 +190,17 @@ export const ModelsSettings: React.FC = () => {
       if (filterStreaming && !model.supports_streaming) return false;
       if (filterTranslation && !model.supports_translation) return false;
 
-      if (q) {
-        const haystack = `${model.name} ${model.description}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
       return true;
     });
-  }, [models, languageFilter, filterStreaming, filterTranslation, searchQuery]);
+  }, [
+    models,
+    languageFilter,
+    filterStreaming,
+    filterTranslation,
+    searchQuery,
+    t,
+    i18n.resolvedLanguage,
+  ]);
 
   // Split filtered models into downloaded (including custom) and available sections
   const { downloadedModels, availableModels } = useMemo(() => {
@@ -209,19 +219,11 @@ export const ModelsSettings: React.FC = () => {
       }
     }
 
-    // Sort: active model first, then non-custom, then custom at the bottom
-    downloaded.sort((a, b) => {
-      if (a.id === currentModel) return -1;
-      if (b.id === currentModel) return 1;
-      if (a.is_custom !== b.is_custom) return a.is_custom ? 1 : -1;
-      return 0;
-    });
-
     return {
       downloadedModels: downloaded,
       availableModels: available,
     };
-  }, [filteredModels, downloadingModels, currentModel]);
+  }, [filteredModels, downloadingModels]);
 
   if (loading) {
     return (
@@ -244,6 +246,8 @@ export const ModelsSettings: React.FC = () => {
         </p>
       </div>
 
+      <ModelComputeSummary />
+
       <RetiredModelsNotice />
 
       {/* Search bar — filter the catalog by name or description */}
@@ -254,6 +258,7 @@ export const ModelsSettings: React.FC = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={t("settings.models.searchPlaceholder")}
+          aria-label={t("settings.models.searchPlaceholder")}
           className="w-full pl-9 pr-3 py-2 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-logo-primary placeholder:text-text/40"
         />
       </div>
