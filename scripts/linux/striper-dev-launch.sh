@@ -4,7 +4,7 @@
 #
 #   1. If a dev copy is already running, raise its window instead.
 #   2. Fast-forward main from origin, unless the checkout has local changes
-#      or is on another branch.
+#      (other than the auto-generated src/bindings.ts) or is on another branch.
 #   3. Run `bun install` when package.json or bun.lock changed.
 #   4. Start `bun run tauri dev`.
 #
@@ -52,6 +52,13 @@ fi
 exec >>"$log" 2>&1
 echo "==> $(date '+%F %T') launching Striper dev from $repo"
 cd "$repo" || exit 1
+
+# Debug builds regenerate src/bindings.ts on every start, so changes there are
+# never real edits; drop them so they don't block the update.
+if [[ -n "$(git status --porcelain --untracked-files=no -- src/bindings.ts)" ]]; then
+  echo "==> Discarding regenerated src/bindings.ts"
+  git checkout -- src/bindings.ts
+fi
 
 branch="$(git symbolic-ref --quiet --short HEAD || echo detached)"
 if [[ "$branch" != main ]]; then

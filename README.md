@@ -231,7 +231,7 @@ To start your latest development build from the application launcher instead of 
 ~/Projects/Striper/scripts/linux/install-dev-launcher.sh
 ```
 
-This adds **Striper (dev)** to the launcher. Each launch fast-forwards `main` (skipped when the checkout has local changes or is on another branch), runs `bun install` when dependencies changed, and starts `bun run tauri dev` with `LD_LIBRARY_PATH` and `LD_PRELOAD` cleared. Launching it again while it is running raises the existing window. Output goes to `~/.local/state/striper/dev-launch.log`; right-click the entry and choose **Open launch log** to read it.
+This adds **Striper (dev)** to the launcher. Each launch fast-forwards `main` (skipped when the checkout has local changes or is on another branch; the `src/bindings.ts` file that dev builds regenerate is reset first and does not count), runs `bun install` when dependencies changed, and starts `bun run tauri dev` with `LD_LIBRARY_PATH` and `LD_PRELOAD` cleared. Launching it again while it is running raises the existing window. Output goes to `~/.local/state/striper/dev-launch.log`; right-click the entry and choose **Open launch log** to read it.
 
 To undo it: `systemctl --user disable --now striper-ydotoold`, then `sudo rm /etc/udev/rules.d/60-striper-uinput.rules /etc/modules-load.d/striper-uinput.conf /usr/local/bin/kdotool`.
 
