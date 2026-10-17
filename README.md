@@ -8,7 +8,7 @@
 
 Striper (S-T-R-I-P-E-R, named after the striped bass) is a cross-platform desktop dictation app. Hold a shortcut, speak, release, and your words appear in the active application — transcribed locally on your own computer. On top of that familiar flow, Striper is adding a second, conversational lane: say **"correct that"** and describe the fix in plain English ("change Thursday to Friday", "I meant Striper, S-T-R-I-P-E-R; remember that"), and Striper safely edits the text and remembers names and spellings you teach it.
 
-Striper targets Windows and Linux first. See [PLAN.md](PLAN.md) for the roadmap and the first acceptance test.
+Striper supports Windows and Linux. Current manual testing focuses on the Linux desktop or a VM; Windows validation is deferred. See [PLAN.md](PLAN.md) for the roadmap and the first acceptance test.
 
 > **Forked from [Handy](https://github.com/cjpais/Handy).** Striper is built on Handy, the free and open source speech-to-text app by [CJ Pais](https://github.com/cjpais) and contributors. All of Handy's local transcription, model management, and paste pipeline comes from upstream. See [Attribution](#attribution).
 
@@ -34,6 +34,8 @@ On Windows x64 or Linux x64, open **Vocabulary → Voice correction**, download 
 After dictating with Ctrl+Space, release the keys and say **“correct that, change Thursday to Friday.”** You can also say **“correct that”**, wait for **“Listening for a correction”**, then give the instruction. Continue with **“actually Saturday”**, **“undo that”**, or **“done”**. Follow-up listening ends after 30 seconds or a focus change. Ctrl+Alt+Space remains the correction shortcut fallback.
 
 The CPU listener pauses during ordinary dictation, so the words “correct that” in dictated prose remain ordinary text. It shares the same microphone recorder. Candidate wake phrases are independently checked by the selected recognizer before editing; the local parser handles familiar instructions and a configured AI provider handles the rest. Learned spellings stay in the local dictionary. An LLM never receives desktop or keystroke control, and normal dictation keeps working without it.
+
+Use **Vocabulary → Correction compatibility** to check the desktop and helper tools. See [Linux testing](docs/LINUX_TESTING.md) for a desktop/VM test sequence. Installer packaging is manual so routine commits do not launch long native installer builds.
 
 Voice activation still needs testing with the actual user's microphone and applications. See [the handoff](docs/AI_HANDOFF.md) for the current verification status.
 

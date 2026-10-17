@@ -770,6 +770,7 @@ pub fn run(cli_args: CliArgs) {
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
+            striper::diagnostics::get_correction_capabilities,
             striper::listener::get_correction_listener_status,
             striper::listener::change_correction_listener_enabled_setting,
             striper::listener_install::install_correction_listener,

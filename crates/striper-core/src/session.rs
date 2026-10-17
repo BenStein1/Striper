@@ -37,6 +37,16 @@ pub enum TargetMatch {
 }
 
 impl AppIdentity {
+    /// A known window must remain observable and equal throughout an edit.
+    /// When a desktop never exposes window IDs, retain the explicit-hotkey
+    /// path's application/readback fallback rather than inventing an identity.
+    pub fn permits_continuation(&self, current: &AppIdentity) -> bool {
+        if let Some(expected) = self.window_id.as_deref() {
+            return current.window_id.as_deref() == Some(expected);
+        }
+        self.compare(current) != TargetMatch::Different
+    }
+
     pub fn compare(&self, other: &AppIdentity) -> TargetMatch {
         if let (Some(a), Some(b)) = (&self.window_id, &other.window_id) {
             return if a == b {
@@ -1024,6 +1034,19 @@ mod tests {
         let new = "See you on Friday files. ".to_string();
         region.retext(&old, &new);
         assert_eq!(region.text(), new);
+    }
+
+    #[test]
+    fn losing_a_previously_known_window_refuses_further_keystrokes() {
+        let expected = notepad();
+        let mut unknown_window = expected.clone();
+        unknown_window.window_id = None;
+        assert!(!expected.permits_continuation(&unknown_window));
+        assert!(expected.permits_continuation(&expected));
+        let mut different = expected.clone();
+        different.window_id = Some("another-window".into());
+        assert!(!expected.permits_continuation(&different));
+        assert!(AppIdentity::default().permits_continuation(&AppIdentity::default()));
     }
 
     #[test]

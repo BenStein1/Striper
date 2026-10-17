@@ -2,6 +2,14 @@
 
 Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status" table is the current scoreboard. This file is the short version for the next engineer or agent.
 
+## Current development policy
+
+- Linux desktop or a VM is the active manual-test target. Preserve Windows support; real Windows validation is deferred.
+- Installer packaging and full Nix builds are manual. Do not launch repeated builds while iterating. Main Branch Build defaults to Linux and offers Windows/both when explicitly requested.
+- Use local core/platform/listener tests and frontend checks for iteration, then batch a testable set of changes. See [LINUX_TESTING.md](LINUX_TESTING.md).
+- Vocabulary now includes a read-only compatibility panel and a copyable diagnostic report. It reports helper detection separately from working device/compositor permissions.
+- KDE idle focus checks use one minimal query at most four times per second. Every kdotool query is bounded to 250 ms; edit-time focus checks stay uncached and fail when a previously known window becomes unobservable.
+
 ## What Striper is
 
 A fork of [Handy](https://github.com/cjpais/Handy) (Tauri 2: Rust backend, React frontend) for a Dragon user on Windows 11 with limited hand mobility. Two lanes share one microphone and one Whisper model:
@@ -24,7 +32,7 @@ Open **Vocabulary → Voice correction**, click **Download local listener files*
 
 ### Remaining validation
 
-Synthetic 16 kHz speech probes triggered the actual Linux Vosk library for a standalone wake and a one-breath instruction. The narrow CPU decoder also confused “connect that cable” with a wake candidate; the independent selected-ASR prefix check rejects that transcript. The core has 90 tests, the listener crate has 4, and coordinator tests cover rejecting ambient work while busy. This is not a microphone/accent false-activation benchmark. Real Windows microphone, foreground field, clipboard, follow-up timing, and installer setup still need the actual desktop. Do not label those acceptance gates passed from CI alone.
+Synthetic 16 kHz speech probes triggered the actual Linux Vosk library for a standalone wake and a one-breath instruction. The narrow CPU decoder also confused “connect that cable” with a wake candidate; the independent selected-ASR prefix check rejects that transcript. The core has 91 tests, the listener crate has 4, and coordinator tests cover rejecting ambient work while busy. This is not a microphone/accent false-activation benchmark. Real Windows microphone, foreground field, clipboard, follow-up timing, and installer setup still need the actual desktop. Do not label those acceptance gates passed from CI alone.
 
 ## Where the code is
 
@@ -51,8 +59,8 @@ A word is saved permanently only when the user's own words ask for it ("remember
 
 ## Verified so far
 
-- `cargo test` in `crates/striper-core` (86 tests) and `crates/striper-platform`; both also run on Windows CI (`.github/workflows/striper-core.yml`).
-- `cargo test` in `src-tauri` (281 tests, Linux), `cargo clippy` without new warnings, `bun run lint`, `bun run build`, `bun run format:check`, `bun run check:translations`.
+- `cargo test` in `crates/striper-core` (91 tests) and `crates/striper-platform`; both also run on Windows CI (`.github/workflows/striper-core.yml`).
+- `cargo test` in `src-tauri` (284 tests, Linux, at the voice-listener checkpoint), `cargo clippy` without new warnings, `bun run lint`, `bun run build`, `bun run format:check`, `bun run check:translations`.
 - The striper-platform Windows code type-checks for `x86_64-pc-windows-gnu`.
 - PLAN.md §0 (teach "Striper" without breaking "striped"/"stripper") and the Thursday → Friday → Saturday → undo flow pass against the simulated text field.
 
@@ -75,12 +83,12 @@ A word is saved permanently only when the user's own words ask for it ("remember
 
 ## Next steps, in order
 
-1. Install the CI artifact on Windows 11. Run Lane A as before, then the M1 demo in Notepad (dictate, "change Thursday to Friday", "actually Saturday", "undo that").
-2. Run the §0 test for real: dictate "I opened striped", "correct that; I meant Striper, S-T-R-I-P-E-R, remember that", restart, dictate again, and check that "striped shirt" is unchanged.
-3. Fix what breaks in `target.rs` and `keys.rs` (timing, per-app quirks) and add an app capability list.
-4. Generate Striper updater keys before enabling self-updates.
-5. Validate and tune the CPU listener with the actual microphone, including false activations, cancellation, one-breath commands and conversational follow-ups.
-6. UI Automation adapter for Word if the keystroke path falls short.
+1. Follow `docs/LINUX_TESTING.md` on the Linux desktop or a VM, starting with a disposable plain-text document and the shortcut path.
+2. Check the compatibility panel and fix actual focus/input/clipboard failures before testing the voice listener.
+3. Run PLAN.md §0 (learn “Striper”, restart, preserve “striped shirt”) and the Thursday → Friday → Saturday → undo sequence on that desktop.
+4. Test wake confirmation, same-breath commands, standalone wake acknowledgment, follow-ups, cancellation, and focus changes with the actual microphone.
+5. Batch fixes and request a Linux installer only when useful. Windows installers and Windows/Word acceptance remain deferred; retain cross-platform tests.
+6. Generate Striper updater keys before enabling self-updates. Consider a Windows UI Automation/Word adapter only after actual app results justify it.
 
 ## Working on it
 

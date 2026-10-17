@@ -1,21 +1,16 @@
 name: "Main Branch Build"
 
-# Builds installable packages on every push to main and on every pull request
-# so breakage is caught before a release. Artifacts are kept for 30 days so any
-# commit has a downloadable, testable build.
-#
-# Striper targets Windows first: the Windows x64 job produces unsigned NSIS
-# (.exe) and MSI installers on both push and PR. The Linux packaging job is
-# slower and runs on pushes to main (and manual dispatch) only. No signing
-# secrets are required; see build.yml for how optional signing is gated.
-# macOS, Windows ARM64 and Linux ARM64 builds remain available through the
-# manual "Build Test" and "Release" workflows.
-
+# Installer packaging is deliberately manual: native speech/GPU builds are
+# expensive. Routine commits retain the separate test and code-quality jobs.
+# Linux is the default development target; Windows/both remain available.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: "Installer platform"
+        type: choice
+        default: linux
+        options: [linux, windows, both]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,6 +18,7 @@ concurrency:
 
 jobs:
   windows:
+    if: inputs.platform == 'windows' || inputs.platform == 'both'
     permissions:
       contents: write
     uses: ./.github/workflows/build.yml
@@ -36,7 +32,7 @@ jobs:
     secrets: inherit
 
   linux:
-    if: github.event_name != 'pull_request'
+    if: inputs.platform == 'linux' || inputs.platform == 'both'
     permissions:
       contents: write
     uses: ./.github/workflows/build.yml

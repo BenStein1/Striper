@@ -118,6 +118,22 @@ fn detect_backend() -> Backend {
     Backend::Enigo
 }
 
+/// Same backend selector used for actual edits. Installation is detected;
+/// device permissions/compositor support still require a real field test.
+pub fn detected_backend_name() -> &'static str {
+    match detect_backend() {
+        Backend::Enigo => "enigo",
+        #[cfg(target_os = "linux")]
+        Backend::Xdotool => "xdotool",
+        #[cfg(target_os = "linux")]
+        Backend::Wtype => "wtype",
+        #[cfg(target_os = "linux")]
+        Backend::Dotool => "dotool",
+        #[cfg(target_os = "linux")]
+        Backend::Ydotool(_) => "ydotool",
+    }
+}
+
 fn enigo_err(e: enigo::InputError) -> String {
     format!("key injection failed: {e}")
 }

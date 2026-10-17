@@ -18,9 +18,52 @@ pub struct ForegroundWindow {
     pub source: &'static str,
 }
 
+/// Check an executable on PATH without spawning a shell or `which` process.
+/// This detects installation only, not compositor/device permissions.
+pub fn command_available(name: &str) -> bool {
+    command_available_on_path(name, std::env::var_os("PATH").as_deref())
+}
+
+fn command_available_on_path(name: &str, path: Option<&std::ffi::OsStr>) -> bool {
+    if name.is_empty() || name.contains(['/', '\\']) {
+        return false;
+    }
+    let Some(path) = path else {
+        return false;
+    };
+    std::env::split_paths(path).any(|directory| {
+        let candidate = directory.join(name);
+        executable_file(&candidate)
+            || (cfg!(windows) && executable_file(&candidate.with_extension("exe")))
+    })
+}
+fn executable_file(path: &std::path::Path) -> bool {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 /// Best-effort identity of the currently focused window.
 pub fn foreground_window() -> ForegroundWindow {
     imp::foreground_window()
+}
+
+/// Minimal foreground identity for hot-path focus checks. On KDE Wayland
+/// this performs one bounded kdotool query, avoiding PID/title subprocesses.
+pub fn foreground_window_token() -> ForegroundWindow {
+    imp::foreground_window_token()
 }
 
 /// Whether Ctrl, Alt, Shift or the Windows/Super key is physically held.
@@ -52,6 +95,10 @@ mod imp {
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
     };
+
+    pub fn foreground_window_token() -> ForegroundWindow {
+        foreground_window()
+    }
 
     pub fn modifiers_held() -> Option<bool> {
         // SAFETY: GetAsyncKeyState only reads global key state.
@@ -130,6 +177,17 @@ mod imp {
             })
     }
 
+    pub fn foreground_window_token() -> ForegroundWindow {
+        if is_wayland() {
+            return ForegroundWindow {
+                window_id: run(&["getactivewindow"]),
+                source: "kdotool",
+                ..Default::default()
+            };
+        }
+        foreground_window()
+    }
+
     pub fn modifiers_held() -> Option<bool> {
         if is_wayland() {
             return None;
@@ -153,11 +211,77 @@ mod imp {
     }
 
     fn run(args: &[&str]) -> Option<String> {
-        let out = Command::new("kdotool").args(args).output().ok()?;
-        out.status
-            .success()
-            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-            .filter(|s| !s.is_empty())
+        bounded_output(
+            Command::new("kdotool").args(args),
+            std::time::Duration::from_millis(250),
+        )
+    }
+
+    /// A stalled compositor/DBus connection must not hang the audio consumer
+    /// or leave an editing worker waiting forever. kdotool output is tiny;
+    /// unread pipe backpressure is also bounded by this deadline.
+    fn bounded_output(command: &mut Command, timeout: std::time::Duration) -> Option<String> {
+        use std::process::Stdio;
+        let mut child = command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if !status.success() {
+                        return None;
+                    }
+                    let out = child.wait_with_output().ok()?;
+                    return String::from_utf8(out.stdout)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty());
+                }
+                Ok(None) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(5))
+                }
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return None;
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod probe_tests {
+        use super::*;
+        use std::time::{Duration, Instant};
+        #[test]
+        fn stalled_focus_helper_is_killed_and_reaped() {
+            let started = Instant::now();
+            assert!(bounded_output(
+                Command::new("sh").args(["-c", "exec sleep 5"]),
+                Duration::from_millis(30)
+            )
+            .is_none());
+            assert!(started.elapsed() < Duration::from_secs(2));
+        }
+        #[test]
+        fn focus_helper_output_is_trimmed_and_failures_are_unknown() {
+            assert_eq!(
+                bounded_output(
+                    Command::new("printf").arg("  {window-id}\n"),
+                    Duration::from_secs(1)
+                )
+                .as_deref(),
+                Some("{window-id}")
+            );
+            assert!(bounded_output(
+                Command::new("sh").args(["-c", "exit 1"]),
+                Duration::from_secs(1)
+            )
+            .is_none());
+        }
     }
 
     fn kdotool() -> Option<ForegroundWindow> {
@@ -241,6 +365,13 @@ mod imp {
 mod imp {
     use super::ForegroundWindow;
 
+    pub fn foreground_window_token() -> ForegroundWindow {
+        foreground_window()
+    }
+    pub fn modifiers_held() -> Option<bool> {
+        None
+    }
+
     pub fn foreground_window() -> ForegroundWindow {
         ForegroundWindow {
             source: "unsupported",
@@ -261,6 +392,40 @@ mod tests {
         );
         assert_eq!(exe_name("/usr/bin/kate").as_deref(), Some("kate"));
         assert_eq!(exe_name(""), None);
+    }
+
+    #[test]
+    fn tool_detection_does_not_accept_directories_or_missing_path() {
+        let dir = std::env::temp_dir();
+        assert!(!command_available_on_path("anything", None));
+        assert!(!command_available_on_path(
+            "../anything",
+            Some(dir.as_os_str())
+        ));
+        assert!(!command_available_on_path("", Some(dir.as_os_str())));
+        assert!(!executable_file(&dir));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn tools_must_be_executable_and_are_found_without_processes() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory =
+            std::env::temp_dir().join(format!("striper-tool-test-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let file = directory.join("striper-probe-tool");
+        std::fs::write(&file, "test").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(!command_available_on_path(
+            "striper-probe-tool",
+            Some(directory.as_os_str())
+        ));
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(command_available_on_path(
+            "striper-probe-tool",
+            Some(directory.as_os_str())
+        ));
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

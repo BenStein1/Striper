@@ -76,7 +76,7 @@ pub fn init(app: &AppHandle) {
 /// Only wake against a known, recent dictation in the focused window. Unknown
 /// Wayland focus uses the explicit shortcut rather than ambient activation.
 fn target(app: &AppHandle) -> Option<AppIdentity> {
-    let focused = focused_identity();
+    let focused = super::focused_window_token();
     let s = state(app)?;
     let ledger = s.ledger.lock().ok()?;
     // App-name equality cannot distinguish two documents/windows. Ambient
@@ -107,6 +107,8 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let clock = Instant::now();
     let mut last_frame = Instant::now();
     let mut cancel_generation = rm.cancel_generation();
+    let mut last_focus_probe: Option<Instant> = None;
+    let mut cached_target: Option<AppIdentity> = None;
     loop {
         let enabled = get_settings(app).correction_listener_enabled;
         if rm.cancel_generation() != cancel_generation {
@@ -211,7 +213,13 @@ fn run(app: &AppHandle) -> Result<(), String> {
             while rx.try_recv().is_ok() {}
         }
         let now = clock.elapsed().as_millis() as u64;
-        let current = target(app);
+        // This only gates acoustic candidates. Before editing, the async
+        // handler and each input operation perform fresh focus checks.
+        if last_focus_probe.is_none_or(|at| at.elapsed() >= Duration::from_millis(250)) {
+            cached_target = target(app);
+            last_focus_probe = Some(Instant::now());
+        }
+        let current = cached_target.clone();
         if session_target.as_ref().is_some_and(|t| {
             current
                 .as_ref()

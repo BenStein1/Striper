@@ -96,10 +96,13 @@ impl KeyboardTarget {
     }
 
     fn check_focus(&self) -> Result<(), String> {
-        if self.expected_target.compare(&super::focused_identity())
-            == striper_core::session::TargetMatch::Different
+        if !self
+            .expected_target
+            .permits_continuation(&super::focused_window_token())
         {
-            return Err("Focus changed during the correction; stopped editing.".into());
+            return Err(
+                "The original window is no longer focused or observable; stopped editing.".into(),
+            );
         }
         Ok(())
     }

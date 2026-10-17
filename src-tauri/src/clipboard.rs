@@ -267,21 +267,13 @@ pub fn get_available_typing_tools() -> Vec<String> {
 /// Check if wtype is available (Wayland text input tool)
 #[cfg(target_os = "linux")]
 pub(crate) fn is_wtype_available() -> bool {
-    Command::new("which")
-        .arg("wtype")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    striper_platform::command_available("wtype")
 }
 
 /// Check if dotool is available (another Wayland text input tool)
 #[cfg(target_os = "linux")]
 pub(crate) fn is_dotool_available() -> bool {
-    Command::new("which")
-        .arg("dotool")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    striper_platform::command_available("dotool")
 }
 
 #[cfg(target_os = "linux")]
@@ -361,20 +353,12 @@ pub(crate) fn detect_ydotool_key_syntax() -> YdotoolKeySyntax {
 /// Check if ydotool is available (uinput-based, works on both Wayland and X11)
 #[cfg(target_os = "linux")]
 pub(crate) fn is_ydotool_available() -> bool {
-    Command::new("which")
-        .arg("ydotool")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    striper_platform::command_available("ydotool")
 }
 
 #[cfg(target_os = "linux")]
 pub(crate) fn is_xdotool_available() -> bool {
-    Command::new("which")
-        .arg("xdotool")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    striper_platform::command_available("xdotool")
 }
 
 /// Check if kwtype is available (KDE Wayland virtual keyboard input tool)

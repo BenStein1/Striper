@@ -11,6 +11,7 @@
 
 pub mod commands;
 pub mod correction;
+pub mod diagnostics;
 mod keys;
 pub mod listener;
 pub mod listener_install;
@@ -139,6 +140,16 @@ pub fn focused_identity() -> AppIdentity {
         app_id: w.app_id,
         window_id: w.window_id,
         title: w.title,
+    }
+}
+
+/// Minimal, uncached identity for safety checks immediately before input.
+pub fn focused_window_token() -> AppIdentity {
+    let w = striper_platform::foreground_window_token();
+    AppIdentity {
+        app_id: w.app_id,
+        window_id: w.window_id,
+        title: None,
     }
 }
 

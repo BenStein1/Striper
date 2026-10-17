@@ -13,6 +13,7 @@ import { Button } from "../../ui/Button";
 import { ShortcutInput } from "../ShortcutInput";
 import { PostProcessingSettingsApi } from "../PostProcessingSettingsApi";
 
+import { CorrectionCompatibility } from "./CorrectionCompatibility";
 import { CorrectionListener } from "./CorrectionListener";
 
 const RECENT_CORRECTIONS = 20;
@@ -380,6 +381,7 @@ export const VocabularySettings: React.FC = () => {
       </SettingsGroup>
 
       <CorrectionListener />
+      <CorrectionCompatibility />
 
       {llmEnabled && (
         <SettingsGroup

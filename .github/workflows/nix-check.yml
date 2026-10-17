@@ -1,35 +1,11 @@
-# Nix CI — two tiers:
-#
-# 1. Quick checks (bun.nix sync, flake eval) run on ANY source change
-#    so compilation-breaking edits are caught by flake eval.
-# 2. Full nix build (~25 min) only runs when nix packaging files change.
-#
-# Build artifacts are pushed to Cachix so Nix users can skip local compilation.
+# Manual Nix packaging validation. Build artifacts are pushed to Cachix
+# so Nix users can skip local compilation.
 
 name: "nix build check"
+# Full Nix compilation is opt-in alongside installer packaging. Normal
+# source changes are covered by the core/platform and code-quality workflows.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "flake.nix"
-      - "flake.lock"
-      - ".nix/**"
-      - "bun.lock"
-      - "src-tauri/**"
-      - "src/**"
-      - "crates/**"
-      - ".github/workflows/**"
-  pull_request:
-    paths:
-      - "flake.nix"
-      - "flake.lock"
-      - ".nix/**"
-      - "bun.lock"
-      - "src-tauri/**"
-      - "src/**"
-      - "crates/**"
-      - ".github/workflows/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

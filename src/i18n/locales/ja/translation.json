@@ -730,6 +730,34 @@
           "processing": "processing correction",
           "error": "needs attention"
         }
+      },
+      "compatibility": {
+        "title": "Correction compatibility",
+        "description": "Checks the current desktop and installed helpers without recording, reading your clipboard, or typing into another application. Copy the report when troubleshooting.",
+        "desktop": "Desktop session",
+        "focus": "Focused window",
+        "input": "Correction input backend",
+        "readback": "Selection verification",
+        "wake": "Voice listener on this platform",
+        "detected": "detected",
+        "notDetected": "not detected",
+        "required": "required",
+        "disabled": "turned off",
+        "available": "available after setup",
+        "unavailable": "shortcut fallback only",
+        "toolStatus": "{{tool}}: {{status}}",
+        "refresh": "Refresh checks",
+        "copy": "Copy diagnostic report",
+        "copied": "Diagnostic report copied.",
+        "guidance": {
+          "focusUnknown": "The focused window cannot currently be identified. Ambient voice correction stays inactive until a recent dictation and a known matching window are available.",
+          "kdeFocusHelper": "On KDE Wayland, install kdotool for foreground-window checks. Use a kdotool release matching your Plasma version, then refresh these checks.",
+          "waylandInputHelper": "No correction helper was detected for this Wayland session. Configure dotool or ydotool, or test in a Plasma X11 session. wtype is not used on KDE or GNOME Wayland.",
+          "waylandClipboard": "Install the wl-clipboard package for wl-copy and wl-paste. These helpers improve clipboard verification on Wayland.",
+          "readbackDisabled": "Selection verification is turned off. Enable “Check before editing” to refuse edits when the selected source text cannot be verified.",
+          "inputPermissions": "Finding dotool or ydotool does not confirm input permissions or daemon readiness. A real text-field test is still required.",
+          "realFieldTest": "Start with a disposable document in Kate or another plain-text editor. Test dictation, correction, undo, switching windows, and preserved clipboard contents. A VM can test guest behavior; host hotkeys, audio passthrough, and GPU behavior need separate checks."
+        }
       }
     }
   },
