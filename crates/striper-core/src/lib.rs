@@ -10,6 +10,7 @@
 
 pub mod command;
 pub mod edit;
+pub mod migration;
 pub mod parser;
 pub mod prompt;
 pub mod session;

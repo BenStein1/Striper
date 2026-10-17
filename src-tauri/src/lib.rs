@@ -915,6 +915,19 @@ pub fn run(cli_args: CliArgs) {
                 utils::env_flag_enabled("HANDY_KEEP_VULKAN_IMPLICIT_LAYERS"),
             );
 
+            // Import before any settings/model manager reads the new app ID.
+            // Portable installs already use their existing Data directory.
+            if !portable::is_portable() {
+                if let Ok(destination) = portable::app_data_dir(app.handle()) {
+                    if let Some(parent) = destination.parent() {
+                        match striper_core::migration::import_handy(&parent.join("com.pais.handy"), &destination) {
+                            Ok(report) if report.imported => log::info!("Imported Handy settings and {} completed model files", report.model_files),
+                            Ok(_) => {},
+                            Err(e) => log::warn!("Could not import Handy data: {e}"),
+                        }
+                    }
+                }
+            }
             specta_builder.mount_events(app);
 
             // Headless one-shot path (`--transcribe-file` / `--list-devices` /

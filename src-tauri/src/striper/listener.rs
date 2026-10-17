@@ -98,8 +98,26 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut phase = String::new();
     let clock = Instant::now();
     let mut last_frame = Instant::now();
+    let mut cancel_generation = rm.cancel_generation();
     loop {
         let enabled = get_settings(app).correction_listener_enabled;
+        if rm.cancel_generation() != cancel_generation {
+            cancel_generation = rm.cancel_generation();
+            rm.stop_listener_capture();
+            audio.clear();
+            if let Some(d) = detector.as_mut() {
+                d.reset();
+            }
+            conversation.reset();
+            session_target = None;
+            utterance_woke = false;
+            if let Some(s) = app.try_state::<ListenerResume>() {
+                if let Ok(mut resume) = s.0.lock() {
+                    *resume = None;
+                }
+            }
+            while rx.try_recv().is_ok() {}
+        }
         let idle = app
             .try_state::<TranscriptionCoordinator>()
             .is_some_and(|c| c.is_idle());
@@ -111,6 +129,11 @@ fn run(app: &AppHandle) -> Result<(), String> {
             }
             if !enabled {
                 detector = None;
+                if let Some(s) = app.try_state::<ListenerResume>() {
+                    if let Ok(mut resume) = s.0.lock() {
+                        *resume = None;
+                    }
+                }
             }
             conversation.reset();
             session_target = None;
@@ -139,18 +162,22 @@ fn run(app: &AppHandle) -> Result<(), String> {
                 }
             }
         }
-        let epoch = rm.listener_generation();
+        let epoch = rm.listener_epoch();
         let tx = tx.clone();
         let overrun = Arc::clone(&overflow);
         let callback: AudioFrameCallback = Arc::new(move |frame| {
             // No blocking/native inference on the recorder delivery thread.
-            if tx.try_send((epoch, frame.to_vec())).is_err() {
+            if tx
+                .try_send((epoch.load(Ordering::Acquire), frame.to_vec()))
+                .is_err()
+            {
                 overrun.store(true, Ordering::Release);
             }
         });
         match rm.start_listener_capture(callback) {
             Ok(g) if g != generation => {
                 generation = g;
+                while rx.try_recv().is_ok() {}
                 audio.clear();
                 detector.as_mut().expect("loaded above").reset();
                 conversation.reset();
@@ -208,7 +235,10 @@ fn run(app: &AppHandle) -> Result<(), String> {
             }
             Err(_) => return Err("Microphone audio channel closed".into()),
         };
-        if epoch != generation || rm.listener_generation() != generation {
+        if rm.cancel_generation() != cancel_generation
+            || epoch != generation
+            || rm.listener_generation() != generation
+        {
             continue;
         }
         last_frame = Instant::now();
@@ -225,11 +255,10 @@ fn run(app: &AppHandle) -> Result<(), String> {
         let detection = detector.as_mut().expect("loaded above").feed(&frame)?;
         // Preserve two seconds of pre-roll while idle, rather than letting
         // silence consume the bounded instruction buffer.
-        if detection.text.is_empty() && !conversation.active(now) && audio.len() > 32_000 {
+        if detection.text.is_empty() && audio.len() > 32_000 {
             audio.drain(..audio.len() - 32_000);
         }
         if current.is_some() && wake_prefix(&detection.text).is_some() && !utterance_woke {
-            conversation.wake(now);
             session_target = current.clone();
             utterance_woke = true;
             // No chime here: speaker feedback could contaminate same-breath
@@ -238,6 +267,14 @@ fn run(app: &AppHandle) -> Result<(), String> {
         }
         if detection.endpoint {
             let prefix = wake_prefix(&detection.text);
+            // Partial hypotheses can be retracted. Only a final exact wake
+            // prefix opens a session; a retracted partial cannot submit speech.
+            if prefix.is_some() && current.is_some() {
+                conversation.wake(now);
+                session_target = current.clone();
+            } else if !conversation.active(now) {
+                session_target = None;
+            }
             let instruction_present = prefix.is_some_and(|rest| !rest.is_empty())
                 || (conversation.active(now)
                     && prefix.is_none()
@@ -248,7 +285,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
                     c.voice_correction(
                         samples,
                         current.clone().unwrap_or_default(),
-                        rm.cancel_generation(),
+                        cancel_generation,
                     );
                 }
                 // Follow-ups resume only after the command succeeds/clarifies.

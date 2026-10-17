@@ -76,7 +76,11 @@ pub struct KeyboardTarget {
 }
 
 impl KeyboardTarget {
-    pub fn new(app: &AppHandle, settings: &AppSettings) -> Self {
+    pub fn new(
+        app: &AppHandle,
+        settings: &AppSettings,
+        expected_target: striper_core::session::AppIdentity,
+    ) -> Self {
         let keys = KeySender::detect(app, settings.paste_method);
         debug!(
             "Correction edit using input backend {}",
@@ -84,7 +88,7 @@ impl KeyboardTarget {
         );
         Self {
             app: app.clone(),
-            expected_target: super::focused_identity(),
+            expected_target,
             keys,
             paste_delay: Duration::from_millis(settings.paste_delay_ms.max(30)),
             paste_settle: Duration::from_millis(settings.paste_delay_after_ms.max(120)),

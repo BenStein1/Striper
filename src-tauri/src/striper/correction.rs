@@ -357,7 +357,7 @@ pub async fn handle_instruction_guarded(
         } else {
             Default::default()
         };
-        let mut target = KeyboardTarget::new(&app, &settings);
+        let mut target = KeyboardTarget::new(&app, &settings, current.clone());
         let guard = needs_keys.then(|| ClipboardGuard::save(&app));
         let ctx = RunContext {
             instruction: &instruction_for_run,

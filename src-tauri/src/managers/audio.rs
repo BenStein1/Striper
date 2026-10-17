@@ -501,8 +501,8 @@ pub struct AudioRecordingManager {
     /// retry re-enumerates. The system-default case is never cached — the
     /// recorder resolves the current default itself.
     cached_device: Arc<Mutex<Option<(String, String)>>>,
-    listener_active: AtomicBool,
-    listener_generation: AtomicU64,
+    listener_active: Arc<AtomicBool>,
+    listener_generation: Arc<AtomicU64>,
 }
 
 impl AudioRecordingManager {
@@ -543,8 +543,8 @@ impl AudioRecordingManager {
             recording_active: Arc::new(AtomicBool::new(false)),
             capture_generation: Arc::new(AtomicU64::new(0)),
             cached_device: Arc::new(Mutex::new(None)),
-            listener_active: AtomicBool::new(false),
-            listener_generation: AtomicU64::new(0),
+            listener_active: Arc::new(AtomicBool::new(false)),
+            listener_generation: Arc::new(AtomicU64::new(0)),
         };
 
         // Always-on?  Open immediately.
@@ -1121,6 +1121,10 @@ impl AudioRecordingManager {
                 warn!("Failed to stop idle listener: {e}");
             }
         }
+    }
+
+    pub fn listener_epoch(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.listener_generation)
     }
 
     pub fn listener_generation(&self) -> u64 {
