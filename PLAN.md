@@ -26,7 +26,10 @@ _Last updated October 17, 2026. "Tested" means automated tests on Linux (and Win
 | Persistent memory only when the user says "remember", stored in SQLite with audit log | Done, tested | §0 acceptance test passes in core tests; needs a real restart on Windows |
 | Vocabulary manager UI, import/export, recent corrections, overlay feedback | Done | Lint and build pass; not yet viewed on screen |
 | Wake phrase "correct that" (CPU detector) | Implemented, desktop validation pending | Opt-in native Vosk listener; shared capture; selected ASR for instructions; synthetic Linux acoustic probe passed |
-| Windows UI Automation / Word adapter | Not started | Keystroke + clipboard path first |
+| Hands-free dictation session (Ctrl+Space toggle, Listening / Paused / Off, "mute"/"unmute", "new paragraph") | In progress | See §5a; core state machine first, then app wiring |
+| Live-text source of truth for "correct that" (read field, plan, verify unchanged, apply) | In progress | See §9a; platform trait first, then Windows UIA adapter |
+| Windows UI Automation / Word adapter | In progress | UIA TextPattern / ValuePattern read adapter behind the live-text trait (§9a); Word-specific adapter later |
+| Linux AT-SPI live-text adapter (KDE) | Not started | §9a fallback order applies until it exists |
 | Data migration from Handy's `com.pais.handy` app-data folder | Implemented, unit-tested | Fresh installations import settings and completed models without changing Handy or overwriting Striper |
 | Updater signing keys for Striper | Not started | Update checks default off |
 
@@ -59,6 +62,9 @@ A correction such as “My first name is Stephen, S-T-E-P-H-E-N; remember that�
 - [ ] Activate correction mode by voice (“correct that”) without requiring rigid Dragon command syntax.
 - [ ] Understand edits such as “change Thursday to Friday,” “replace that question mark with a period,” “put two spaces after the sentence,” “scratch that,” and “undo that.”
 - [ ] Support follow-up commands in the same editing session: “Actually, make it Saturday.”
+- [ ] Offer a **hands-free dictation session** (§5a): one Ctrl+Space press (or a large Start dictation button) starts it, speech is committed at natural pauses, “mute”/“unmute” pause and resume by voice, and a second press ends it. Three unmistakable states: **Listening, Paused, Off**.
+- [ ] Support Dragon's spoken **“new paragraph”** during dictation, and paragraph restructuring afterwards through “correct that” without changing the wording.
+- [ ] Treat the **focused application's live text** as the source of truth for corrections (§9a), so the user can correct text he typed himself or a letter opened from yesterday, not only text Striper remembers dictating.
 - [ ] Remember learned names, spellings, and explicit user preferences across sessions, beginning with the app's own name, **Striper**.
 - [ ] Make edits reversible and refuse unsafe/ambiguous edits rather than guessing.
 - [ ] Offer an **OpenAI-compatible** LLM endpoint (local or hosted); keep normal dictation working if it is unavailable.
@@ -76,7 +82,7 @@ A correction such as “My first name is Stephen, S-T-E-P-H-E-N; remember that�
 ### Not in MVP
 
 - Full Dragon feature parity, voice macros for arbitrary desktop automation, browser navigation, or filesystem control.
-- Blind editing of entire documents or unbounded clipboard history.
+- Blind editing of entire documents or unbounded clipboard history. (Whole-document corrections are allowed only where an accessibility API actually exposes the whole document, §9a.)
 - Guaranteed editing in every Windows control, secure desktop, password field, or elevated app.
 - Continuous recording or cloud audio upload without clear opt-in.
 
@@ -179,6 +185,53 @@ Initial investigation checklist:
 | “Undo that.” | Reverse the last **assistant edit**, verifying the current target first. |
 | “Don't remember that spelling.” | Remove/disable the stored preference; preserve an audit entry. |
 
+## 5a. Hands-free dictation session (Dad's Dragon workflow)
+
+**Source:** Ben's conversation with his dad about how he uses Dragon (October 17, 2026). Dad switches Dragon on once, talks to write a letter, says “mute” to stop it listening and “unmute” to carry on, and says “new paragraph” where he wants one. He should not have to touch the keyboard between thoughts: at most one keystroke to start and one to end.
+
+This mode is **optional and additive**. Hold-to-talk Ctrl+Space (Lane A) keeps working exactly as before for anyone who prefers it; a setting chooses which behavior Ctrl+Space has.
+
+### Controls and states
+
+| He does or says | Striper does |
+|---|---|
+| Presses **Ctrl+Space** once, or clicks the large **Start dictation** button | Starts the session: **Listening**. Subtle start sound. |
+| Speaks normally | Dictates. Each utterance is committed (vocabulary-corrected, then inserted) when he pauses naturally. |
+| “New paragraph” while dictating | Inserts a paragraph break at that point instead of the words. |
+| “Correct that, start a new paragraph after ‘see you tomorrow’” | Finds that phrase in the live text and inserts a paragraph break after it (§9a). |
+| “Correct that, split this into paragraphs” | Re-paragraphs the recent passage **without changing a single word** (§9a validation). |
+| “Mute” (on its own) | Pauses: **Paused** indicator and a subtle sound. |
+| “Unmute” (on its own) | Resumes: **Listening** indicator and a subtle sound. |
+| Presses **Ctrl+Space** again, or clicks **End dictation** | Ends the session, including the paused “unmute” listener: **Off**. |
+
+- There are exactly three states, **Listening, Paused, Off**, each with its own visual indicator (main window button, overlay and tray) and its own subtle sound on entry. Sounds follow the existing audio-feedback setting.
+- The main window shows one large **Start dictation / End dictation** button reflecting the current state; Ctrl+Space does the same thing.
+- The cancel shortcut and the tray remain an emergency stop; cancelling discards the utterance in flight but leaves the session state unchanged unless the user ends it.
+
+### Mute and unmute
+
+- “Mute” and “unmute” count **only as standalone utterances with a pause on either side**. The whole recognized utterance must be the command word (punctuation and case ignored), and the silence before and after it must each meet a minimum (initially 400 ms; tune on the real microphone). “I put my phone on mute” is ordinary dictation.
+- **While paused, only a small local listener runs, and it listens only for “unmute.”** Every other utterance is discarded: never inserted, never stored, never sent to the LLM. Long utterances are dropped without being transcribed at all; short ones may be checked locally. Prefer the CPU keyword listener (Vosk grammar limited to “unmute”) when it is installed, confirmed by the local recognizer; otherwise the Silero VAD plus a short-duration gate and local recognizer.
+- **Ending the session stops the paused listener too.** Off means no microphone use by the session at all.
+
+### Paragraphs
+
+- During dictation, the spoken phrase “new paragraph” (and “new line” for a single break) becomes a paragraph break, with the following word capitalized and stray punctuation/spaces around the command removed. Supporting this means Dad does not have to unlearn a useful Dragon habit.
+- He can also speak his mind first and restructure afterwards with “correct that”: inserting a paragraph break after a named phrase, or splitting a passage into paragraphs. Paragraph-only operations are validated to change whitespace only; any change to the words is rejected.
+
+### Correction inside a session
+
+- An utterance that begins with “correct that” while Listening is a correction instruction (the same Lane B pipeline), not dictation. The rest of the utterance, or the next utterance if he pauses after the wake phrase, is the instruction. Follow-ups (“actually, Friday”, “undo that”) keep working as in §5.
+- Correction reads the focused field's live text (§9a); session history is used only to interpret “undo that” and follow-ups.
+
+### Acceptance
+
+- [ ] With the keyboard used only to start and end: dictate a short letter with pauses, say “new paragraph” twice, say “mute”, talk to someone in the room (nothing inserted, nothing sent), say “unmute”, continue, end the session.
+- [ ] “I put my phone on mute.” is inserted as text and does not pause.
+- [ ] “Correct that, start a new paragraph after ‘see you tomorrow’” and “Correct that, split this into paragraphs” change only paragraph breaks.
+- [ ] Each state is distinguishable by sight and by sound; Off releases the microphone.
+- [ ] Passes on Windows 11 with Dad's microphone; Linux checks support development.
+
 ## 6. Persistent learning: treat it as a preference, not a magical ASR retrain
 
 Store preferences in **SQLite**, independent of Whisper's model files and Handy settings. Keep a migration/version number and export/import support.
@@ -225,7 +278,7 @@ Illustrative command result **(contract proposal, not existing Handy API)**:
 }
 ```
 
-Allowed operations: `replace_text`, `replace_punctuation`, `insert_text`, `delete_recent_dictation`, `undo_last_edit`, `remember_spelling`, `forget_spelling`, `clarify`, `cancel`, `finish`.
+Allowed operations: `replace_text`, `replace_punctuation`, `insert_text`, `insert_paragraph_break`, `set_paragraphs` (whitespace-only restructuring, §5a), `delete_recent_dictation`, `undo_last_edit`, `remember_spelling`, `forget_spelling`, `clarify`, `cancel`, `finish`.
 
 **Hard constraints:**
 
@@ -274,6 +327,35 @@ Required safeguards:
 - Detect app normalization (e.g., stripping double spaces) and report inability rather than repeatedly retrying.
 
 **Minimum app test matrix:** Windows Notepad; Word desktop; Outlook classic/new or actual email app used; Chrome/Edge plain input and contenteditable field; one rich-text editor; an unsupported target; password field; app-switch mid-command. Record exact app/version, input adapter, and undo result.
+
+## 9a. Live text is the source of truth
+
+**Decision (October 17, 2026):** For “correct that”, the focused application's current text is authoritative, not Striper's copy. A copy kept by Striper breaks the moment the user types, moves the cursor, clicks elsewhere or edits something himself. Reading the live field also lets him correct text he typed or a letter he opened yesterday.
+
+### The correction loop
+
+1. **Read** the focused text field: its text (or the visible/recent window the API exposes), the selection and the caret position, together with the window/control identity.
+2. **Plan:** send that text plus the spoken instruction to the LLM (or the local parser), and resolve the returned operations against the snapshot into concrete edits.
+3. **Verify unchanged:** read the field again just before applying. If the text, selection or control changed while the LLM was working, do not apply the old plan: re-plan once against the new text, and refuse with a clear message if it changes again.
+4. **Apply** a targeted edit to exactly the planned range, then read back and confirm the result; on mismatch, undo and report.
+
+Session history (the ledger) is used only to understand “undo that”, “scratch that” and follow-ups such as “actually, Friday”; it does not decide what is currently in the document.
+
+### Platform adapters and capabilities
+
+- A platform trait exposes `read` (text, selection, caret, how much of the document is visible) and targeted `select range` / `replace selection` operations, plus a capability report. Shared planning and verification live in `striper-core` and are tested against a simulated field.
+- **Windows first:** UI Automation (TextPattern/TextPattern2 for document text, selection and caret; ValuePattern for simple fields), never reading pixels. UIA TextPattern is read-mostly, so edits select the target range through UIA where supported and then use the existing verified paste/keystroke path. Word may later get its own adapter.
+- **Linux/KDE:** AT-SPI (Text, EditableText) where the toolkit exposes it; otherwise the existing keystroke/clipboard path.
+- **Fallbacks, in order:** full field text via accessibility → the selected text only (correct just the selection) → Striper's recent-dictation ledger (current Tier 1 behavior) → refuse. When a field cannot be read or safely edited, say so plainly (“I can't read this field; select the text you want corrected” or “This app doesn't let me edit safely”) rather than guessing.
+- **Honest scope:** only promise whole-document edits where the whole document is actually readable. When an API exposes only a bounded window around the caret, corrections are limited to that window and the user is told so. Never send entire documents to a hosted model by default (§7): the context sent is bounded around the caret/selection and the target of the instruction.
+- Password fields, secure desktop and elevated windows remain refused (§7, §9).
+
+### Acceptance
+
+- [ ] In Notepad and Word: type a sentence by hand, then “correct that, change Thursday to Friday” edits the typed text.
+- [ ] Open yesterday's letter, place the caret in it, and correct a phrase in view.
+- [ ] Type in the field while the LLM is thinking: Striper re-reads and re-plans or refuses; it never applies a stale edit.
+- [ ] An app with no accessible text falls back to the selection or refuses with a clear message.
 
 ## 10. Wake-word engineering
 
@@ -331,6 +413,15 @@ Performance targets to benchmark, not promises:
 - [ ] Add session state machine, timeout, “done,” cancel, follow-up reference and feedback.
 - [ ] Measure false wakeups and missed wakeups on actual microphone.
 - [ ] **Demo:** “correct that -> Thursday to Friday -> actually Saturday -> done” without extra keystrokes on Windows; demonstrate same core workflow in one supported Linux editor.
+
+### M3a — Hands-free session and live-text corrections (Dad's workflow)
+
+- [ ] Session state machine in `striper-core`: Off / Listening / Paused, standalone mute/unmute with pause checks, “new paragraph” formatting, “correct that” routing; unit-tested.
+- [ ] App wiring: Ctrl+Space toggle mode, large Start/End dictation button, overlay/tray state, distinct sounds, pause-detected commits through the shared microphone and selected recognizer.
+- [ ] Paused mode runs only the small local “unmute” listener; everything else is discarded; ending the session stops it.
+- [ ] Live-text trait and verified loop (read → plan → verify unchanged → apply → read back), paragraph-only operations validated to change whitespace only.
+- [ ] Windows UIA read adapter (TextPattern, ValuePattern, selection, caret) with fallbacks and clear refusals; Linux AT-SPI adapter afterwards.
+- [ ] **Demo:** §5a and §9a acceptance lists on Windows 11, then on Dad's PC.
 
 ### M4 — Windows-first compatibility, Linux integration, safety and usability
 
@@ -418,7 +509,8 @@ This is a **proposed** layout, not a claim that these files exist upstream. An i
 3. Prove safe undo and focus validation **before** adding a wake word or elaborate prompt.
 4. Add SQLite named-entity corrections and confirm persistence/ambiguity handling.
 5. Attach configurable fast-model command parsing, followed by wake-phrase interaction.
-6. Test with Dad's actual Word/email apps, microphone, and GTX 1080; exercise the same shared logic on Linux (Plasma X11/Wayland) and document capabilities rather than assuming universality.
+6. Build Dad's hands-free session (§5a) and the live-text correction loop with the Windows UIA adapter (§9a, M3a).
+7. Test with Dad's actual Word/email apps, microphone, and GTX 1080; exercise the same shared logic on Linux (Plasma X11/Wayland) and document capabilities rather than assuming universality.
 
 ## 17. References (project/docs to confirm at pinned upstream commit)
 
