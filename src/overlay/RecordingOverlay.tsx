@@ -14,7 +14,11 @@ import type { ModelStateEvent } from "@/lib/types/events";
 import { getLanguageDirection } from "@/lib/utils/rtl";
 
 type OverlayState =
-  "recording" | "streaming" | "transcribing" | "processing" | "feedback";
+  | "recording"
+  | "streaming"
+  | "transcribing"
+  | "processing"
+  | "feedback";
 
 // Result of a spoken correction, shown briefly after it runs.
 type FeedbackKind = "success" | "info" | "error";
