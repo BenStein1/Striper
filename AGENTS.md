@@ -84,7 +84,7 @@ Striper (a fork of [Handy](https://github.com/cjpais/Handy)) is a cross-platform
   - `shared/`, `ui/`, `icons/`, `footer/` - Shared components
 - `hooks/useSettings.ts` - Settings state management hook
 - `stores/settingsStore.ts` - Zustand store for settings
-- `bindings.ts` - Auto-generated Tauri type bindings (via tauri-specta)
+- `bindings.ts` - Auto-generated Tauri type bindings (via tauri-specta). Debug builds rewrite it on every start, so the committed copy must match: after changing commands, events or their types, run `UPDATE_BINDINGS=1 cargo test bindings` in `src-tauri/` and commit the result (CI's `cargo test` fails when it is stale)
 - `overlay/` - Recording overlay window entry point
 - `lib/types.ts` - Shared TypeScript type definitions
 
