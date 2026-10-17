@@ -11,6 +11,10 @@ import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
 import { ThemeSelector } from "../ThemeSelector";
 import { LogDirectory } from "../debug";
 
+const STRIPER_REPO_URL = "https://github.com/BenStein1/Striper";
+// Striper is a fork of Handy; credit the upstream project.
+const HANDY_REPO_URL = "https://github.com/cjpais/Handy";
+
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
@@ -29,11 +33,11 @@ export const AboutSettings: React.FC = () => {
     fetchVersion();
   }, []);
 
-  const handleDonateClick = async () => {
+  const openExternal = async (url: string) => {
     try {
-      await openUrl("https://handy.computer/donate");
+      await openUrl(url);
     } catch (error) {
-      console.error("Failed to open donate link:", error);
+      console.error(`Failed to open ${url}:`, error);
     }
   };
 
@@ -54,16 +58,6 @@ export const AboutSettings: React.FC = () => {
         <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
 
         <SettingContainer
-          title={t("settings.about.supportDevelopment.title")}
-          description={t("settings.about.supportDevelopment.description")}
-          grouped={true}
-        >
-          <Button variant="primary" size="md" onClick={handleDonateClick}>
-            {t("settings.about.supportDevelopment.button")}
-          </Button>
-        </SettingContainer>
-
-        <SettingContainer
           title={t("settings.about.sourceCode.title")}
           description={t("settings.about.sourceCode.description")}
           grouped={true}
@@ -71,7 +65,7 @@ export const AboutSettings: React.FC = () => {
           <Button
             variant="secondary"
             size="md"
-            onClick={() => openUrl("https://github.com/cjpais/Handy")}
+            onClick={() => openExternal(STRIPER_REPO_URL)}
           >
             {t("settings.about.sourceCode.button")}
           </Button>
@@ -82,6 +76,25 @@ export const AboutSettings: React.FC = () => {
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.about.acknowledgments.title")}>
+        <SettingContainer
+          title={t("settings.about.acknowledgments.handy.title")}
+          description={t("settings.about.acknowledgments.handy.description")}
+          grouped={true}
+          layout="stacked"
+        >
+          <div className="flex flex-col items-start gap-2">
+            <div className="text-sm text-mid-gray">
+              {t("settings.about.acknowledgments.handy.details")}
+            </div>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => openExternal(HANDY_REPO_URL)}
+            >
+              {t("settings.about.acknowledgments.handy.button")}
+            </Button>
+          </div>
+        </SettingContainer>
         <SettingContainer
           title={t("settings.about.acknowledgments.ggml.title")}
           description={t("settings.about.acknowledgments.ggml.description")}

@@ -1,0 +1,49 @@
+name: "striper-core"
+
+# Fast, Tauri-free tests for the shared correction/dictionary core. Runs on
+# Linux and Windows so platform differences (paths, line endings) show up
+# without waiting for the full app build.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check for crates/striper-core
+        id: crate
+        shell: bash
+        run: |
+          if [ -f crates/striper-core/Cargo.toml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::crates/striper-core/Cargo.toml not found; skipping striper-core tests"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: install Rust stable
+        if: steps.crate.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        if: steps.crate.outputs.present == 'true'
+        with:
+          workspaces: "./crates/striper-core -> target"
+
+      - name: Run striper-core tests
+        if: steps.crate.outputs.present == 'true'
+        run: cargo test --manifest-path crates/striper-core/Cargo.toml
