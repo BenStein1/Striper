@@ -2,8 +2,9 @@
 
 **Status:** In implementation. See [Implementation status](#implementation-status) and [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md)  
 **Date:** October 17, 2026  
-**Current test target:** Linux desktop (KDE Plasma X11/Wayland), or a VM. Windows remains supported; validation on Dad's Windows 11 / GTX 1080 machine is deferred.
-**Audience:** A Dragon NaturallySpeaking user on Windows and a Linux developer. See [Linux testing](docs/LINUX_TESTING.md) for the active validation workflow.
+**Product priority:** Windows 11 for Dad is the primary user experience and acceptance target. Linux remains supported.
+**Development/test environment:** Ben develops on KDE Plasma Linux. A Windows 11 VM, potentially through WinBoat, is the planned Windows test route; Dad's own PC remains the final hardware/application acceptance target.
+**Audience:** A Dragon NaturallySpeaking user on Windows and a Linux developer. See [desktop and VM testing](docs/LINUX_TESTING.md) for Linux iteration and Windows acceptance checks.
 **Application name:** Striper (S-T-R-I-P-E-R), named for the striped bass; not “striped” or “stripper.”
 
 ## Implementation status
@@ -37,13 +38,13 @@ _Last updated October 17, 2026. "Tested" means automated tests on Linux (and Win
 2. Say “correct that; I meant Striper, S-T-R-I-P-E-R; remember that” (or an equivalent natural correction). Striper should identify the intended prior text, preview or safely apply the edit, and save the spelling as an explicit user-taught proper name.
 3. Across later dictations and application restarts, recognize “Striper” in relevant contexts without making the user spell it again. Prefer a recognizer custom-word hint when available, with a validated post-transcription normalization fallback where necessary.
 4. **Do not globally replace** the valid English words “striped” or “stripper” in unrelated sentences. Context matters; when intent is uncertain, ask or leave the transcript unchanged.
-5. Confirm that undo/revert works, the saved preference can be reviewed or deleted, and the behavior is tested on the Linux desktop or a VM first, then repeated on Windows when available.
+5. Confirm that undo/revert works, the saved preference can be reviewed or deleted, and the behavior passes in Windows 11 (initially a guest if needed), then on Dad's PC before release; Linux checks support development and cross-platform compatibility.
 
 This requirement is part of the first milestone, not a cosmetic cleanup. It proves the ASR -> correction -> persistent memory -> safe insertion loop while preserving normal dictation.
 
 ## 1. Mission
 
-Fork and extend the existing **Handy** dictation experience rather than replace it. Develop the shared code on Linux and build/test both Windows and Linux targets; preserve Windows compatibility while using the Linux desktop or a VM for current manual testing. Normal dictation should remain quick and familiar: hold **Ctrl+Space**, speak, release, and the words appear in the active application. Add a second, conversational lane activated by **“correct that”** (with a keyboard fallback). The user can then say what to change in ordinary English, and the system safely updates the relevant text.
+Fork and extend the existing **Handy** dictation experience rather than replace it. Prioritize a simple, reliable Windows 11 experience for Dad. Develop the shared code on Linux and build/test both Windows and Linux targets; use a Windows 11 VM for Windows acceptance when his PC is unavailable. Normal dictation should remain quick and familiar: hold **Ctrl+Space**, speak, release, and the words appear in the active application. Add a second, conversational lane activated by **“correct that”** (with a keyboard fallback). The user can then say what to change in ordinary English, and the system safely updates the relevant text.
 
 A correction such as “My first name is Stephen, S-T-E-P-H-E-N; remember that” should persist across restarts. We should not have to retrain Whisper or pay for a Dragon upgrade.
 
@@ -62,7 +63,7 @@ A correction such as “My first name is Stephen, S-T-E-P-H-E-N; remember that�
 - [ ] Make edits reversible and refuse unsafe/ambiguous edits rather than guessing.
 - [ ] Offer an **OpenAI-compatible** LLM endpoint (local or hosted); keep normal dictation working if it is unavailable.
 - [ ] Maintain one cross-platform core and platform-specific text-editing adapters for Windows and Linux.
-- [ ] Support a Linux-first development workflow with automated Windows builds and tests; The Linux desktop or a VM is the current acceptance environment; Dad's Windows 11 validation is deferred.
+- [ ] Support development on Linux while keeping Windows 11 the primary product target; run Windows tests in CI and interactive acceptance in a Windows guest and Dad's own environment. Batch manual installer builds rather than packaging each edit.
 - [ ] Ship a simple Windows installer and Linux package/tray app with accessible visual/audio status and minimal setup.
 
 ### Nice to have after MVP
@@ -366,7 +367,7 @@ Interactive tests (Windows first, plus Linux integration):
 - [ ] Test without keyboard after initial setup; feedback must be understandable for nontechnical users.
 - [ ] Run on KDE Plasma X11 and Wayland (when available), document compositor permission requirements, and validate safe fallback on unsupported fields.
 
-**Release-ready MVP:** Reliable regular Handy dictation + exact recent-transcript editing + persistent corrections + safe undo + understandable fallback. Wake word and broad app support progress only once safety and latency pass measurement gates on the active test desktop.
+**Release-ready MVP:** Reliable regular Handy dictation + exact recent-transcript editing + persistent corrections + safe undo + understandable fallback. Wake word and broad app support progress only once safety and latency pass measurement gates on Windows 11, with final microphone/application checks on Dad's PC. Linux results alone do not establish Windows readiness.
 
 ## 14. Risks and choices to settle through experiments
 

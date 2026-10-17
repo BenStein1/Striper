@@ -1,8 +1,10 @@
-# Linux-first testing
+# Linux development and Windows acceptance
 
-Linux is the active development and manual-test environment. Striper remains
-cross-platform; Windows acceptance is deferred until hardware or a VM is ready.
-No Windows desktop behavior has been inferred from Linux results.
+Striper is a Windows-first program for Dad on Windows 11. Ben develops on a
+KDE Plasma Linux desktop, and Linux remains supported. Linux testing helps
+iteration; it does not replace Windows acceptance. A Windows 11 guest,
+potentially through WinBoat, is the planned Windows test route until Dad's PC
+is available. No Windows desktop behavior has been inferred from Linux results.
 
 ## Build policy
 
@@ -78,3 +80,39 @@ A Linux guest does not establish Windows compatibility. A Windows guest can
 test Windows text fields and adapters, but does not establish GTX 1080 timing,
 GPU-driver behavior, or the real microphone's wake accuracy. Keep host and
 guest results separate in the test notes.
+
+## Windows 11 guest acceptance (including a possible WinBoat setup)
+
+Use the Windows application **inside the Windows 11 guest**, installed from a
+Windows artifact. A Linux build presented on the host does not exercise the
+Windows adapters. In Main Branch Build, select `windows` for this installer;
+the workflow's Linux default reflects the development environment, not product
+priority. Reuse that installer through a manual test batch.
+
+1. Confirm the guest receives microphone audio and the intended recording
+   shortcuts. Check host/guest shortcut interception and clipboard integration
+   before diagnosing the Windows app. Start with CPU recognition if the guest
+   has no working GPU acceleration.
+2. Install and launch as a normal user, select a microphone/model, and test
+   ordinary dictation in Windows Notepad. Record Windows version, app commit,
+   model, and guest configuration.
+3. Enable the voice listener and test “correct that” without pressing a
+   correction shortcut: both a same-breath instruction and a standalone wake
+   followed by its listening acknowledgment. Test follow-ups and “done”. Keep
+   the shortcut available as a fallback, not as the primary correction UX.
+4. Run PLAN.md §0's remembered-name/restart check and the Thursday → Friday →
+   Saturday → undo sequence. Check clipboard restoration, manual caret/text
+   changes, focus switches and cancellation with “Check before editing” on.
+5. Repeat in the email/word-processing applications Dad actually uses when
+   available in the guest. A Notepad pass alone does not establish Word or
+   browser-field compatibility. Record unsupported controls and clear fallback
+   behavior rather than disabling verification to make a test pass.
+6. Check tray launch/quit, restart persistence, readable/audio feedback and a
+   voice-led correction session requiring no correction keystroke after setup.
+7. Before calling it ready for Dad, repeat on his PC with his microphone and
+   everyday applications. Guest results do not establish native GPU timing or
+   his microphone's wake accuracy.
+
+If no Windows guest is ready, continue shared-code fixes and Linux smoke tests,
+but leave the Windows acceptance items open. The product priority remains
+Windows 11 usability for Dad.

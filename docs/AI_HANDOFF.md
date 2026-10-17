@@ -4,7 +4,8 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 
 ## Current development policy
 
-- Linux desktop or a VM is the active manual-test target. Preserve Windows support; real Windows validation is deferred.
+- **Windows-first product:** Striper is primarily for Dad on Windows 11. Prioritize his dictation, voice correction, accessibility, setup and everyday applications. Linux is Ben's development desktop and a supported platform, not the primary acceptance target.
+- **Windows test route:** Ben may use WinBoat to run a Windows 11 guest. Validate the Windows installer, adapters and actual guest applications there; final checks still need Dad's own microphone, GPU and applications. Do not count a Linux VM or Linux test pass as Windows acceptance.
 - Installer packaging and full Nix builds are manual. Do not launch repeated builds while iterating. Main Branch Build defaults to Linux and offers Windows/both when explicitly requested.
 - Use local core/platform/listener tests and frontend checks for iteration, then batch a testable set of changes. See [LINUX_TESTING.md](LINUX_TESTING.md).
 - Vocabulary now includes a read-only compatibility panel and a copyable diagnostic report. It reports helper detection separately from working device/compositor permissions.
@@ -83,11 +84,11 @@ A word is saved permanently only when the user's own words ask for it ("remember
 
 ## Next steps, in order
 
-1. Follow `docs/LINUX_TESTING.md` on the Linux desktop or a VM, starting with a disposable plain-text document and the shortcut path.
+1. Prioritize Windows 11 acceptance for Dad. Use the Windows guest checklist in `docs/LINUX_TESTING.md` when a Windows VM is available (WinBoat is Ben's likely route). Use the Linux desktop for shared-code iteration and supporting smoke tests.
 2. Check the compatibility panel and fix actual focus/input/clipboard failures before testing the voice listener.
-3. Run PLAN.md §0 (learn “Striper”, restart, preserve “striped shirt”) and the Thursday → Friday → Saturday → undo sequence on that desktop.
+3. Run PLAN.md §0 (learn “Striper”, restart, preserve “striped shirt”) and the Thursday → Friday → Saturday → undo sequence in Windows Notepad and a real email/word-processing workflow. Track guest results separately from Dad's PC.
 4. Test wake confirmation, same-breath commands, standalone wake acknowledgment, follow-ups, cancellation, and focus changes with the actual microphone.
-5. Batch fixes and request a Linux installer only when useful. Windows installers and Windows/Word acceptance remain deferred; retain cross-platform tests.
+5. Batch fixes and request the installer needed for the next actual test: Windows for the Windows guest, Linux for local installation. Retain cross-platform tests. Do not launch repeated installer builds or defer Windows/Word work merely because development happens on Linux.
 6. Generate Striper updater keys before enabling self-updates. Consider a Windows UI Automation/Word adapter only after actual app results justify it.
 
 ## Working on it

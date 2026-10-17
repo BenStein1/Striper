@@ -8,7 +8,7 @@
 
 Striper (S-T-R-I-P-E-R, named after the striped bass) is a cross-platform desktop dictation app. Hold a shortcut, speak, release, and your words appear in the active application — transcribed locally on your own computer. On top of that familiar flow, Striper is adding a second, conversational lane: say **"correct that"** and describe the fix in plain English ("change Thursday to Friday", "I meant Striper, S-T-R-I-P-E-R; remember that"), and Striper safely edits the text and remembers names and spellings you teach it.
 
-Striper supports Windows and Linux. Current manual testing focuses on the Linux desktop or a VM; Windows validation is deferred. See [PLAN.md](PLAN.md) for the roadmap and the first acceptance test.
+Striper is Windows-first, built primarily for Dad on Windows 11, and also supports Linux. Development happens on a Linux desktop; a Windows 11 VM (potentially through WinBoat) is the planned Windows test environment until his PC is available. See [PLAN.md](PLAN.md) for the roadmap and the first acceptance test.
 
 > **Forked from [Handy](https://github.com/cjpais/Handy).** Striper is built on Handy, the free and open source speech-to-text app by [CJ Pais](https://github.com/cjpais) and contributors. All of Handy's local transcription, model management, and paste pipeline comes from upstream. See [Attribution](#attribution).
 
@@ -44,6 +44,10 @@ Voice activation still needs testing with the actual user's microphone and appli
 ### Installation
 
 Striper does not publish signed releases yet. Use an installer from the [releases page](https://github.com/BenStein1/Striper/releases), when available, or a successful **Main Branch Build** run as described below.
+
+#### Windows
+
+Download the Windows artifact from a successful Windows build, extract the ZIP, and run the `Striper_*_x64-setup.exe` (NSIS) or `.msi` installer. Builds are unsigned, so SmartScreen may require **More info → Run anyway**. Launch Striper, select a microphone and model, and configure shortcuts. Windows 11 is the primary user target. Use a Windows 11 guest for early testing from Linux; final acceptance still includes Dad's own PC and applications.
 
 #### Kubuntu / Ubuntu / Debian (.deb)
 
@@ -111,10 +115,6 @@ sudo apt remove striper
 ```
 
 Removing the package leaves user data in place. To find your data and logs, use Striper's **About → App Data Directory** entry. For startup/rendering errors, see [Linux startup troubleshooting](#linux-startup-crashes-or-instability).
-
-#### Windows
-
-Download the Windows artifact from a successful Windows build, extract the ZIP, and run the `Striper_*_x64-setup.exe` (NSIS) or `.msi` installer. Builds are unsigned, so SmartScreen may require **More info → Run anyway**. Launch Striper, select a microphone and model, and configure shortcuts. Windows manual validation is currently deferred.
 
 ### Development Setup
 
