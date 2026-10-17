@@ -32,7 +32,21 @@ use crate::tray;
 
 /// Initialize shortcuts using the configured implementation
 pub fn init_shortcuts(app: &AppHandle) {
-    let user_settings = settings::load_or_create_app_settings(app);
+    let mut user_settings = settings::load_or_create_app_settings(app);
+
+    // Tauri's global shortcuts go through XWayland, so on a Wayland session they
+    // only fire while an X11 window (e.g. a browser) is focused. Prefer
+    // handy-keys there whenever it can read the keyboards.
+    #[cfg(target_os = "linux")]
+    if user_settings.keyboard_implementation == KeyboardImplementation::Tauri
+        && crate::utils::is_wayland()
+    {
+        info!("Wayland session: switching shortcuts from Tauri to handy-keys");
+        let mut settings = settings::get_settings(app);
+        settings.keyboard_implementation = KeyboardImplementation::HandyKeys;
+        settings::write_settings(app, settings);
+        user_settings.keyboard_implementation = KeyboardImplementation::HandyKeys;
+    }
 
     // Check which implementation to use
     match user_settings.keyboard_implementation {
@@ -42,10 +56,9 @@ pub fn init_shortcuts(app: &AppHandle) {
         KeyboardImplementation::HandyKeys => {
             if let Err(e) = handy_keys::init_shortcuts(app) {
                 error!("Failed to initialize handy-keys shortcuts: {}", e);
-                // Fall back to Tauri implementation and persist this fallback
+                // Persist the fallback so we don't retry HandyKeys on next
+                // launch (Wayland sessions still retry, see above).
                 warn!("Falling back to Tauri global shortcut implementation and saving fallback to settings");
-
-                // Update settings to persist the fallback so we don't retry HandyKeys on next launch
                 let mut settings = settings::get_settings(app);
                 settings.keyboard_implementation = KeyboardImplementation::Tauri;
                 settings::write_settings(app, settings);

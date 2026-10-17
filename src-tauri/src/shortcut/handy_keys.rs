@@ -28,7 +28,7 @@
 //! via Tauri's event system.
 
 use handy_keys::{Hotkey, HotkeyId, HotkeyManager, HotkeyState, KeyboardListener};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use serde::Serialize;
 use specta::Type;
 use std::collections::HashMap;
@@ -89,12 +89,19 @@ impl HandyKeysState {
     /// Create a new HandyKeysState
     pub fn new(app: AppHandle) -> Result<Self, String> {
         let (cmd_tx, cmd_rx) = mpsc::channel::<ManagerCommand>();
+        let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
 
         // Start the manager thread
         let app_clone = app.clone();
         let thread_handle = thread::spawn(move || {
-            Self::manager_thread(cmd_rx, app_clone);
+            Self::manager_thread(cmd_rx, ready_tx, app_clone);
         });
+
+        // Surface a failed listener here, so the caller can fall back instead
+        // of running with shortcuts that silently never fire.
+        ready_rx
+            .recv()
+            .map_err(|_| "handy-keys manager thread exited during startup".to_string())??;
 
         Ok(Self {
             command_sender: Mutex::new(cmd_tx),
@@ -107,17 +114,34 @@ impl HandyKeysState {
     }
 
     /// The main manager thread - owns the HotkeyManager and processes commands
-    fn manager_thread(cmd_rx: Receiver<ManagerCommand>, app: AppHandle) {
+    fn manager_thread(
+        cmd_rx: Receiver<ManagerCommand>,
+        ready: mpsc::Sender<Result<(), String>>,
+        app: AppHandle,
+    ) {
         info!("handy-keys manager thread started");
 
-        // Create the HotkeyManager in this thread
+        // Create the HotkeyManager in this thread. Blocking keeps shortcut keys
+        // from also reaching the focused app (on Linux it needs /dev/uinput);
+        // without it, shortcuts still fire but their keys pass through.
         let manager = match HotkeyManager::new_with_blocking() {
             Ok(m) => m,
-            Err(e) => {
-                error!("Failed to create HotkeyManager: {}", e);
-                return;
+            Err(blocking_error) => {
+                warn!(
+                    "handy-keys cannot block shortcut keys ({}); shortcuts will still work but their keys also reach the focused app",
+                    blocking_error
+                );
+                match HotkeyManager::new() {
+                    Ok(m) => m,
+                    Err(e) => {
+                        error!("Failed to create HotkeyManager: {}", e);
+                        let _ = ready.send(Err(e.to_string()));
+                        return;
+                    }
+                }
             }
         };
+        let _ = ready.send(Ok(()));
 
         // Maps binding IDs to HotkeyIds and hotkey strings
         let mut binding_to_hotkey: HashMap<String, HotkeyId> = HashMap::new();

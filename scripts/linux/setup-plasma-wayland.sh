@@ -40,6 +40,16 @@ sudo udevadm trigger --name-match=uinput
 # Apply the ACL to the current session immediately as well.
 sudo setfacl -m "u:$(id -un):rw" /dev/uinput
 
+echo "==> Letting Striper read the keyboard for its global shortcuts"
+# Wayland gives apps no global-shortcut API Striper can use for hold-to-talk,
+# so it reads /dev/input directly (and grabs its shortcut keys through uinput
+# so they don't also reach the focused app). That needs the 'input' group.
+relogin=false
+if ! id -nG "$(id -un)" | tr ' ' '\n' | grep -qx input; then
+  sudo usermod -aG input "$(id -un)"
+  relogin=true
+fi
+
 echo "==> Installing ydotoold as a user service"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$unit_dir"
@@ -95,7 +105,11 @@ command -v wl-copy >/dev/null && echo "wl-clipboard: installed"
 
 if $ok; then
   echo
-  echo "Done. Restart Striper, then check Vocabulary -> Correction compatibility and test dictation in Kate."
+  if $relogin; then
+    echo "Done. Log out and back in once (you were added to the 'input' group), then start Striper."
+  else
+    echo "Done. Restart Striper, then check Vocabulary -> Correction compatibility and test dictation in Kate."
+  fi
 else
   exit 1
 fi
