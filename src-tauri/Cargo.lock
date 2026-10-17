@@ -6045,7 +6045,6 @@ dependencies = [
  "rusqlite_migration",
  "serde",
  "serde_json",
- "strsim",
  "unicode-segmentation",
 ]
 

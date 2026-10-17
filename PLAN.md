@@ -15,19 +15,19 @@ _Last updated October 17, 2026. "Tested" means automated tests on Linux (and Win
 |---|---|---|
 | Fork, rebrand to Striper, Handy attribution kept | Done | `9bf8a10`; About page and README credit Handy; original icon kept at `assets/branding/striper-original-icon.png` |
 | Installer builds (Windows NSIS/MSI; Linux deb/AppImage) | Manual, platform selectable | `.github/workflows/main-build.yml`; no installer build on routine commits |
-| Shared core crate (`crates/striper-core`): vocabulary, command schema, parser, ledger, verified edit planner, SQLite store | Done, tested | 91 unit tests; Linux and Windows CI |
+| Shared core crate (`crates/striper-core`): vocabulary, command schema, ledger, verified edit planner, SQLite store | Done, tested | 91 unit tests; Linux and Windows CI |
 | Platform crate (`crates/striper-platform`): foreground window + modifier state, Windows and X11 (KDE Wayland via kdotool if installed) | Done, Windows path type-checked only | Needs Windows |
 | Lane A: learned vocabulary applied before paste, context-aware, per-app scope, ASR hints | Done, tested in core | Needs Windows |
 | Lane A keeps working with no LLM | Done | Lane A never calls the LLM |
 | Lane B: correction shortcut (Ctrl+Alt+Space) and `--toggle-correction`, shared mic/ASR path with Lane A | Done | Needs Windows |
 | Lane B operations: replace, follow-up ("actually Saturday"), punctuation, spaces, insert, capitalize, delete, scratch that, undo, remember, forget, cancel, done | Done, tested in core | Needs Windows (Notepad, Word, email) |
-| Local parser first, OpenAI-compatible LLM fallback with strict schema, timeout and back-off | Done | Needs a live endpoint |
+| Corrections interpreted by the OpenAI-compatible LLM only (strict schema, timeout and back-off); undo/done/cancel recognised locally | Done | Needs a live endpoint. Regex edit parsing removed on Ben's instruction (Oct 17) |
 | Verified, transactional, reversible edits (selection read-back, post-verify, undo on mismatch, clipboard restore, stale-focus check) | Done, tested against a simulated field | Needs Windows; read-back depends on each app allowing copy |
 | Persistent memory only when the user says "remember", stored in SQLite with audit log | Done, tested | §0 acceptance test passes in core tests; needs a real restart on Windows |
 | Vocabulary manager UI, import/export, recent corrections, overlay feedback | Done | Lint and build pass; not yet viewed on screen |
 | Wake phrase "correct that" (CPU detector) | Implemented, desktop validation pending | Opt-in native Vosk listener; shared capture; selected ASR for instructions; synthetic Linux acoustic probe passed |
 | Hands-free dictation session (Ctrl+Space toggle, Listening / Paused / Off, "mute"/"unmute", "new paragraph") | Implemented, core and endpointing tested | §5a. `striper-core::dictation` (16 tests), `src-tauri/src/striper/hands_free.rs` (VAD endpointing tests), big Start/End button on General, `--toggle-dictation-session`. Needs a real microphone, then Windows. Paused listener is VAD + duration gate + local ASR; the Vosk "unmute" grammar is not wired yet |
-| Paragraph corrections ("new paragraph after …", "split into paragraphs") | Done, tested in core | `insert_paragraph_breaks` operation changes whitespace only; local parser and AI prompt both produce it |
+| Paragraph corrections ("new paragraph after …", "split into paragraphs") | Done, tested in core | `insert_paragraph_breaks` operation changes whitespace only; produced by the AI |
 | Live-text source of truth for "correct that" (read field, plan, verify unchanged, apply) | Implemented, tested against a simulated field | §9a. `striper-core::live` (14 tests): re-plans once if the field changed, verifies selection and result, restores the caret, live undo/follow-ups. Used whenever the platform can read the field; otherwise the ledger path |
 | Windows UI Automation / Word adapter | UIA reader implemented, type-checked only | `crates/striper-platform/src/live_text_windows.rs`: TextPattern text/selection/caret, ValuePattern fallback, password refusal, verified range selection. Needs Windows (Notepad, Word, Edge). Word-specific adapter later |
 | Linux AT-SPI live-text adapter (KDE) | Not started | §9a fallback order applies until it exists |
@@ -336,7 +336,7 @@ Required safeguards:
 ### The correction loop
 
 1. **Read** the focused text field: its text (or the visible/recent window the API exposes), the selection and the caret position, together with the window/control identity.
-2. **Plan:** send that text plus the spoken instruction to the LLM (or the local parser), and resolve the returned operations against the snapshot into concrete edits.
+2. **Plan:** send that text plus the spoken instruction to the LLM, and resolve the returned operations against the snapshot into concrete edits.
 3. **Verify unchanged:** read the field again just before applying. If the text, selection or control changed while the LLM was working, do not apply the old plan: re-plan once against the new text, and refuse with a clear message if it changes again.
 4. **Apply** a targeted edit to exactly the planned range, then read back and confirm the result; on mismatch, undo and report.
 

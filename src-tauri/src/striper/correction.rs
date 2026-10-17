@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use striper_core::command::{parse_command_response, response_json_schema, EditOperation};
 use striper_core::edit::ExecuteOptions;
-use striper_core::parser::{parse_instruction, ParseContext};
 use striper_core::prompt::{build_user_message, system_prompt};
 use striper_core::session::{
     run_operations, CorrectionSession, LearnRequest, RunContext, SessionPhase, StepOutcome,
@@ -137,7 +136,7 @@ pub(super) async fn interpret_with_llm_message(
 ) -> Result<Vec<EditOperation>, String> {
     let settings = crate::settings::get_settings(app);
     let Some((provider, api_key, model)) = settings.correction_llm() else {
-        return Err("Set up an AI provider and model under Vocabulary to use natural-language correction. Basic local commands and undo remain available.".into());
+        return Err("Set up an AI provider and model under Vocabulary to use natural-language correction. Undo, done and cancel still work without it.".into());
     };
     if now_ms() < state.llm_paused_until_ms.load(Ordering::SeqCst) {
         return Err(
@@ -309,11 +308,10 @@ pub async fn handle_instruction_guarded(
         Err(e) => debug!("Live field unavailable, using recent dictation: {e}"),
     }
 
-    let (region, last_dictation, last_edit, previous) = match state.ledger.lock() {
+    let (region, last_dictation, previous) = match state.ledger.lock() {
         Ok(l) => (
             l.region_text().unwrap_or_default(),
             l.last_dictation().unwrap_or_default().to_string(),
-            l.last_edit(),
             l.history()
                 .iter()
                 .map(|e| striper_core::parser::LastEdit {
@@ -343,15 +341,8 @@ pub async fn handle_instruction_guarded(
             return;
         }
     }
-    let parse_ctx = ParseContext {
-        region_text: &region,
-        last_edit,
-    };
-    let parsed = parse_instruction(&instruction, &parse_ctx);
-    let ai_configured = crate::settings::get_settings(&app)
-        .correction_llm()
-        .is_some();
-    let local = striper_core::parser::local_operations_for_mode(parsed, ai_configured);
+    // Corrections are the AI's job; only instant controls stay local.
+    let local = striper_core::parser::local_control(&instruction).map(|op| vec![op]);
     let (ops, interpreter) = match local {
         Some(ops) => (ops, "local"),
         None => match interpret_with_llm(
@@ -505,15 +496,7 @@ async fn handle_live(
         .and_then(|l| l.last_dictation().map(str::to_string))
         .filter(|d| window.text.contains(d.trim()))
         .unwrap_or_default();
-    let parse_ctx = ParseContext {
-        region_text: &window.text,
-        last_edit: previous.last().cloned(),
-    };
-    let parsed = parse_instruction(&instruction, &parse_ctx);
-    let ai_configured = crate::settings::get_settings(&app)
-        .correction_llm()
-        .is_some();
-    let local = striper_core::parser::local_operations_for_mode(parsed, ai_configured);
+    let local = striper_core::parser::local_control(&instruction).map(|op| vec![op]);
     let (ops, interpreter) = match local {
         Some(ops) => (ops, "local"),
         None => {

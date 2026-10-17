@@ -714,7 +714,6 @@ fn build_learn_request(
 mod tests {
     use super::*;
     use crate::edit::SimulatedField;
-    use crate::parser::{parse_instruction, ParseContext};
 
     fn notepad() -> AppIdentity {
         AppIdentity {
@@ -754,6 +753,34 @@ mod tests {
         }
     }
 
+    /// What the AI interpreter returns for the instructions used in these
+    /// tests (corrections are interpreted by the AI, never by regexes).
+    fn ai(instruction: &str) -> Vec<EditOperation> {
+        let replace = |e: &str, r: &str| EditOperation::ReplaceText {
+            expected_text: e.into(),
+            replacement_text: r.into(),
+            occurrence: None,
+        };
+        match instruction {
+            "Correct that. Change Thursday to Friday." | "change Thursday to Friday" => {
+                vec![replace("Thursday", "Friday")]
+            }
+            "Actually, make that Saturday." => vec![replace("Friday", "Saturday")],
+            "Undo that." | "undo that" => vec![EditOperation::UndoLastEdit],
+            "scratch that" => vec![EditOperation::DeleteRecentDictation],
+            "Correct that; I meant Striper, S-T-R-I-P-E-R; remember that." => vec![
+                replace("striped", "Striper"),
+                EditOperation::RememberSpelling {
+                    preferred_text: "Striper".into(),
+                    aliases: vec!["striped".into()],
+                    context_words: vec![],
+                    always: false,
+                },
+            ],
+            other => panic!("no simulated AI response for {other:?}"),
+        }
+    }
+
     fn say(
         ledger: &mut Ledger,
         field: &mut SimulatedField,
@@ -761,12 +788,7 @@ mod tests {
         instruction: &str,
         now: u64,
     ) -> Vec<StepOutcome> {
-        let region = ledger.region_text().unwrap_or_default();
-        let pctx = ParseContext {
-            region_text: &region,
-            last_edit: ledger.last_edit(),
-        };
-        let ops = parse_instruction(instruction, &pctx).expect("instruction should parse");
+        let ops = ai(instruction);
         let target = notepad();
         let ctx = RunContext {
             instruction,
