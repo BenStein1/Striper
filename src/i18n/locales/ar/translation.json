@@ -596,6 +596,11 @@
           "description": "The open source project Striper is built on",
           "details": "Striper is a fork of Handy, the free and open source speech-to-text app created by CJ Pais and contributors (MIT licensed). Thank you!",
           "button": "Visit Handy"
+        },
+        "vosk": {
+          "title": "Vosk — optional local voice listener",
+          "description": "Vosk API and the small English US 0.15 model by Alpha Cephei, Apache License 2.0. Used on the CPU to detect “correct that”; ordinary dictation keeps its selected recognizer.",
+          "button": "Vosk source and license"
         }
       },
       "whatsNewUpdates": {
@@ -712,7 +717,7 @@
         "enable": "Listen for “correct that”",
         "privacy": "Keeps the selected microphone open for a local CPU listener. Background audio stays in memory and is never saved or uploaded. Pauses during ordinary dictation.",
         "instructions": "Dictate normally, release Ctrl+Space, then say “correct that, change Thursday to Friday”. You can pause after “correct that”. Follow up with “actually Saturday”, “undo that”, or “done”. The session ends after 30 seconds without a command or when focus changes. Windows and Linux x64; a known recent dictation target is required.",
-        "install": "Download local listener files (about 70 MB)",
+        "install": "Download local listener files (about 55 MB)",
         "installing": "Downloading and checking listener files…",
         "installed": "Local listener ready. Turn it on when you want voice correction.",
         "status": "Listener: {{state}}",

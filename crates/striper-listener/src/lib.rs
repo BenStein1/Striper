@@ -46,7 +46,7 @@ impl Conversation {
 
 type ModelNew = unsafe extern "C" fn(*const c_char) -> *mut c_void;
 type Free = unsafe extern "C" fn(*mut c_void);
-type RecNew = unsafe extern "C" fn(*mut c_void, c_float) -> *mut c_void;
+type RecNew = unsafe extern "C" fn(*mut c_void, c_float, *const c_char) -> *mut c_void;
 type Accept = unsafe extern "C" fn(*mut c_void, *const c_float, c_int) -> c_int;
 type Json = unsafe extern "C" fn(*mut c_void) -> *const c_char;
 type Reset = unsafe extern "C" fn(*mut c_void);
@@ -92,7 +92,7 @@ impl Detector {
                 .get(b"vosk_model_free\0")
                 .map_err(|e| e.to_string())?;
             let rec_new: RecNew = *library
-                .get(b"vosk_recognizer_new\0")
+                .get(b"vosk_recognizer_new_grm\0")
                 .map_err(|e| e.to_string())?;
             let rec_free: Free = *library
                 .get(b"vosk_recognizer_free\0")
@@ -117,7 +117,11 @@ impl Detector {
             if model.is_null() {
                 return Err("Could not load the wake-listener model".into());
             }
-            let recognizer = rec_new(model, 16_000.0);
+            // Include unknown speech explicitly; otherwise a tiny grammar can
+            // force unrelated audio into the wake phrase. The selected ASR,
+            // not this acoustic detector, transcribes the actual instruction.
+            let grammar = c"[\"correct that\", \"[unk]\"]";
+            let recognizer = rec_new(model, 16_000.0, grammar.as_ptr());
             if recognizer.is_null() {
                 model_free(model);
                 return Err("Could not create the wake listener".into());
@@ -203,6 +207,20 @@ mod tests {
             assert_eq!(wake_prefix(prose), None, "{prose}");
         }
     }
+    #[test]
+    fn selected_recognizer_must_confirm_a_keyword_candidate() {
+        // A constrained CPU decoder can hear these as "correct that".
+        // The independent selected-ASR result is authoritative.
+        assert_eq!(wake_prefix("Connect that cable."), None);
+        assert_eq!(wake_prefix("Correct the spelling."), None);
+        assert_eq!(wake_prefix("Directly that."), None);
+        assert_eq!(wake_prefix("Correct that."), Some(""));
+        assert_eq!(
+            wake_prefix("Correct that, change Thursday to Friday."),
+            Some("change Thursday to Friday.")
+        );
+    }
+
     #[test]
     fn sessions_expire_and_can_be_cancelled() {
         let mut c = Conversation::default();

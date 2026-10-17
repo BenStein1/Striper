@@ -179,6 +179,7 @@ enum Command {
         samples: Vec<f32>,
         target: striper_core::session::AppIdentity,
         generation: u64,
+        require_wake: bool,
     },
 }
 
@@ -241,6 +242,16 @@ impl CoordinatorState {
             pending_release: None,
             pending_press: None,
         }
+    }
+
+    /// Ambient commands have no toggle parity and must never be remembered
+    /// for later. Reserving here serializes them with all physical inputs.
+    fn reserve_voice_command(&mut self) -> bool {
+        if self.stage != Stage::Idle {
+            return false;
+        }
+        self.stage = Stage::Processing;
+        true
     }
 
     /// Deadline of the deferred release, if any — drives `recv_timeout`.
@@ -593,16 +604,18 @@ impl TranscriptionCoordinator {
                             samples,
                             target,
                             generation,
+                            require_wake,
                         } => {
                             let rm = app.state::<Arc<AudioRecordingManager>>();
-                            if state.stage == Stage::Idle && !rm.was_cancelled_since(generation) {
-                                state.stage = Stage::Processing;
+                            if !rm.was_cancelled_since(generation) && state.reserve_voice_command()
+                            {
                                 rm.stop_listener_capture();
                                 crate::striper::listener::transcribe_instruction(
                                     app.clone(),
                                     samples,
                                     target,
                                     generation,
+                                    require_wake,
                                 );
                             }
                         }
@@ -635,11 +648,13 @@ impl TranscriptionCoordinator {
         samples: Vec<f32>,
         target: striper_core::session::AppIdentity,
         generation: u64,
+        require_wake: bool,
     ) {
         let _ = self.tx.send(Command::VoiceCorrection {
             samples,
             target,
             generation,
+            require_wake,
         });
     }
 
@@ -764,6 +779,30 @@ fn stop(app: &AppHandle, binding_id: &str, hotkey_string: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_work_reserves_idle_pipeline_and_is_never_queued_while_busy() {
+        let mut state = CoordinatorState::new();
+        assert!(state.reserve_voice_command());
+        assert!(!state.reserve_voice_command());
+        assert_eq!(state.stage, Stage::Processing);
+        assert!(state.on_processing_finished().is_none());
+        assert_eq!(state.stage, Stage::Idle);
+        assert!(state.pending_press.is_none());
+    }
+
+    #[test]
+    fn voice_work_cannot_preempt_a_physical_recording() {
+        let mut state = CoordinatorState::new();
+        state.begin_recording(
+            "transcribe".into(),
+            "Ctrl+Space".into(),
+            Instant::now(),
+            false,
+        );
+        assert!(!state.reserve_voice_command());
+        assert_eq!(state.stage, Stage::Recording("transcribe".into()));
+    }
 
     #[test]
     fn push_to_talk_release_while_recording_defers_release() {

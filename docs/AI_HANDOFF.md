@@ -7,7 +7,24 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 A fork of [Handy](https://github.com/cjpais/Handy) (Tauri 2: Rust backend, React frontend) for a Dragon user on Windows 11 with limited hand mobility. Two lanes share one microphone and one Whisper model:
 
 - **Lane A, dictation.** Hold Ctrl+Space, speak, release. Handy's pipeline, plus learned spellings applied before the text is pasted. Never touches the LLM.
-- **Lane B, correction.** Hold Ctrl+Alt+Space (or run `striper --toggle-correction`) and say what to change about recent dictation. A local parser handles common phrasings; an OpenAI-compatible LLM is asked only when the parser gives up. Either way the result is a small list of validated `EditOperation`s that Rust executes and verifies. The LLM never gets keystrokes, shell or desktop access.
+- **Lane B, correction.** Enable the local CPU listener in Vocabulary settings, then say “correct that” and what to change about recent dictation. Follow-ups remain voice-only for 30 seconds. Ctrl+Alt+Space (or `striper --toggle-correction`) is the fallback. A local parser handles common phrasings; an OpenAI-compatible LLM is asked only when the parser gives up. Either way the result is a small list of validated `EditOperation`s that Rust executes and verifies. The LLM never gets keystrokes, shell or desktop access.
+
+## October 17 continuation: voice activation
+
+- `crates/striper-listener/` dynamically loads Vosk 0.3.45 on a dedicated CPU thread. It uses a small keyword grammar (with an unknown-speech alternative) to propose **final** “correct that” candidates. The existing selected recognizer independently confirms the exact wake prefix before any session opens or parser/LLM runs. Partial hypotheses only show feedback; they cannot activate an edit. This is an alternative to training a custom openWakeWord model; no Python runtime is needed.
+- `src-tauri/src/striper/listener.rs` owns the shared-mic idle consumer, bounded audio queue, 20-second utterance limit, two-second pre-roll, 30-second follow-up session, cancellation generations and target checks. Once an instruction ends, the existing selected recognizer transcribes its audio. Background audio is never written to history/WAV or uploaded.
+- `listener_install.rs` downloads pinned native/model ZIPs on an explicit setup click, verifies SHA-256, rejects unsafe paths/symlinks and oversized archives, stages and validates the engine before installing. Supported initially: Windows x64 and Linux x64. Other architectures keep the shortcut path.
+- `MicrophoneSink` in `managers/audio.rs` selects idle listening or normal capture on the **same** recorder. PTT synchronously preempts the listener. The coordinator accepts voice work only while idle and never queues it behind another dictation.
+- Cancellation is checked after LLM interpretation and before application. `KeyboardTarget` checks its original foreground identity before each editing action.
+- `striper-core::migration::import_handy` imports settings and completed local model files on a fresh non-portable Striper installation, preserving the old install and existing Striper stores. Updater and listener opt-ins are not inherited.
+
+### User setup
+
+Open **Vocabulary → Voice correction**, click **Download local listener files**, then enable **Listen for “correct that”**. After dictation, release Ctrl+Space and say “correct that, change Thursday to Friday”; either say the whole instruction in one breath or pause after the wake phrase and wait for “Listening for a correction” before continuing. Continue with “actually Saturday”, “undo that”, and “done”. Focus must match known recent dictation. Unknown focus falls back to the shortcut. Disable/re-enable after a microphone error to retry.
+
+### Remaining validation
+
+Synthetic 16 kHz speech probes triggered the actual Linux Vosk library for a standalone wake and a one-breath instruction. The narrow CPU decoder also confused “connect that cable” with a wake candidate; the independent selected-ASR prefix check rejects that transcript. The core has 90 tests, the listener crate has 4, and coordinator tests cover rejecting ambient work while busy. This is not a microphone/accent false-activation benchmark. Real Windows microphone, foreground field, clipboard, follow-up timing, and installer setup still need the actual desktop. Do not label those acceptance gates passed from CI alone.
 
 ## Where the code is
 
@@ -49,11 +66,11 @@ A word is saved permanently only when the user's own words ask for it ("remember
 
 ## Known open issues
 
-- **Data folder moved.** The identifier changed from Handy's `com.pais.handy`, so an existing Handy install's models and settings are not picked up. Copy `%APPDATA%\com.pais.handy` to `%APPDATA%\com.benstein1.striper`, or add a one-time migration.
+- **Existing Striper installs:** automatic Handy import only runs before the first Striper settings store is created. It does not merge into an already configured Striper profile. Shared Hugging Face caches continue to be discovered by the model manager.
 - **Updater.** `tauri.conf.json` still carries Handy's updater public key; update checks default to off. Generate a Striper key pair before enabling releases.
 - **Translations.** New Striper strings are English in every locale.
 - **Correction messages** in the overlay come from `StepOutcome::message()` in English, not i18n.
-- **No wake phrase yet.** PLAN.md M3; the hotkey is the fallback.
+- **Wake tuning:** the opt-in CPU listener works in a synthetic probe; real microphone latency and false activations remain unmeasured. Unknown desktop focus refuses ambient activation.
 - **Paste trimming.** Handy options such as trailing-space handling run on dictation, not on correction edits; check "two spaces" on Windows.
 
 ## Next steps, in order
@@ -61,8 +78,8 @@ A word is saved permanently only when the user's own words ask for it ("remember
 1. Install the CI artifact on Windows 11. Run Lane A as before, then the M1 demo in Notepad (dictate, "change Thursday to Friday", "actually Saturday", "undo that").
 2. Run the §0 test for real: dictate "I opened striped", "correct that; I meant Striper, S-T-R-I-P-E-R, remember that", restart, dictate again, and check that "striped shirt" is unchanged.
 3. Fix what breaks in `target.rs` and `keys.rs` (timing, per-app quirks) and add an app capability list.
-4. Data migration from `com.pais.handy`, then updater keys.
-5. Wake phrase: a CPU keyword spotter fed from the existing always-on mic stream, gated off during push-to-talk.
+4. Generate Striper updater keys before enabling self-updates.
+5. Validate and tune the CPU listener with the actual microphone, including false activations, cancellation, one-breath commands and conversational follow-ups.
 6. UI Automation adapter for Word if the keystroke path falls short.
 
 ## Working on it

@@ -27,7 +27,15 @@ The process is entirely local:
   - **Parakeet** - CPU-optimized model with excellent performance and automatic language detection
 - Works on Windows and Linux (macOS builds from source)
 
-The conversational correction lane (voice-activated edits plus a persistent personal dictionary) is under active development; it never gives an LLM unrestricted control of your computer, and normal dictation keeps working without it.
+### Voice correction
+
+On Windows x64 or Linux x64, open **Vocabulary → Voice correction**, download the local listener files, and enable **Listen for “correct that”**. This is an explicit background-microphone opt-in; audio is processed locally on the CPU and background audio is never saved or uploaded.
+
+After dictating with Ctrl+Space, release the keys and say **“correct that, change Thursday to Friday.”** You can also say **“correct that”**, wait for **“Listening for a correction”**, then give the instruction. Continue with **“actually Saturday”**, **“undo that”**, or **“done”**. Follow-up listening ends after 30 seconds or a focus change. Ctrl+Alt+Space remains the correction shortcut fallback.
+
+The CPU listener pauses during ordinary dictation, so the words “correct that” in dictated prose remain ordinary text. It shares the same microphone recorder. Candidate wake phrases are independently checked by the selected recognizer before editing; the local parser handles familiar instructions and a configured AI provider handles the rest. Learned spellings stay in the local dictionary. An LLM never receives desktop or keystroke control, and normal dictation keeps working without it.
+
+Voice activation still needs testing with the actual user's microphone and applications. See [the handoff](docs/AI_HANDOFF.md) for the current verification status.
 
 ## Quick Start
 

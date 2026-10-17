@@ -551,6 +551,20 @@ pub fn run_operations(
     target: &mut dyn TextTarget,
     vocab: &mut dyn VocabularySink,
 ) -> Vec<StepOutcome> {
+    // A model may return a control operation alongside edits. Cancellation
+    // and unresolved ambiguity apply to the whole instruction, regardless of
+    // their position; never make changes before asking what the user meant.
+    if ops.iter().any(|op| matches!(op, EditOperation::Cancel)) {
+        return vec![StepOutcome::Cancelled];
+    }
+    if let Some(EditOperation::Clarify { question }) = ops
+        .iter()
+        .find(|op| matches!(op, EditOperation::Clarify { .. }))
+    {
+        return vec![StepOutcome::Clarify {
+            question: question.clone(),
+        }];
+    }
     let mut outcomes = Vec::new();
     // Region text as it was before this instruction: the misheard word
     // (and its context) lives there, not in the corrected text.
@@ -836,6 +850,38 @@ mod tests {
         assert!(learned.context_words.contains(&"opened".to_string()));
         assert!(learned.context_words.contains(&"write".to_string()));
         assert!(!learned.always);
+    }
+
+    #[test]
+    fn ambiguity_or_cancel_prevents_all_edits_even_when_returned_last() {
+        for control in [
+            EditOperation::Clarify {
+                question: "Which day?".into(),
+            },
+            EditOperation::Cancel,
+        ] {
+            let mut ledger = Ledger::default();
+            let mut field = SimulatedField::with_text("");
+            let mut vocab = MemoryVocab::default();
+            commit(&mut ledger, &mut field, "hello", 1_000);
+            let ops = vec![EditOperation::DeleteRecentDictation, control];
+            let target = notepad();
+            let ctx = RunContext {
+                instruction: "change that",
+                current_target: &target,
+                now_ms: 2_000,
+                options: ExecuteOptions::default(),
+            };
+            let out = run_operations(&mut ledger, &ops, &ctx, &mut field, &mut vocab);
+            assert_eq!(out.len(), 1);
+            assert!(matches!(
+                &out[0],
+                StepOutcome::Clarify { .. } | StepOutcome::Cancelled
+            ));
+            assert_eq!(field.text(), "hello");
+            assert!(ledger.history().is_empty());
+            assert!(vocab.learned.is_empty());
+        }
     }
 
     #[test]

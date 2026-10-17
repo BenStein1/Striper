@@ -58,15 +58,17 @@ pub fn assets(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
 pub fn init(app: &AppHandle) {
     app.manage(ListenerState::default());
     let app = app.clone();
-    std::thread::spawn(move || {
+    std::thread::spawn(move || loop {
         if let Err(error) = run(&app) {
             log::error!("Wake listener stopped: {error}");
             if let Some(rm) = app.try_state::<Arc<AudioRecordingManager>>() {
                 rm.stop_listener_capture();
             }
-            // Preserve the failure visibly; do not reopen the microphone in a
-            // retry loop. The user can disable/re-enable to restart the app lane.
+            // Preserve the failure visibly; retry only after an explicit toggle.
             report(&app, "error", Some(error));
+            while get_settings(&app).correction_listener_enabled {
+                std::thread::sleep(Duration::from_millis(200));
+            }
         }
     });
 }
@@ -215,7 +217,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
             audio.clear();
             detector.as_mut().expect("loaded above").reset();
         }
-        let next = if conversation.active(now) {
+        let next = if conversation.active(now) || utterance_woke {
             "listening"
         } else {
             "armed"
@@ -263,33 +265,25 @@ fn run(app: &AppHandle) -> Result<(), String> {
             utterance_woke = true;
             // No chime here: speaker feedback could contaminate same-breath
             // instructions. The tray/overlay provides a visual acknowledgment.
-            crate::utils::show_feedback_overlay(app, "Listening for a correction…", "info");
+            crate::utils::show_feedback_overlay(app, "Checking correction wake phrase…", "info");
         }
         if detection.endpoint {
             let prefix = wake_prefix(&detection.text);
-            // Partial hypotheses can be retracted. Only a final exact wake
-            // prefix opens a session; a retracted partial cannot submit speech.
-            if prefix.is_some() && current.is_some() {
-                conversation.wake(now);
-                session_target = current.clone();
-            } else if !conversation.active(now) {
-                session_target = None;
-            }
-            let instruction_present = prefix.is_some_and(|rest| !rest.is_empty())
-                || (conversation.active(now)
-                    && prefix.is_none()
-                    && !detection.text.trim().is_empty());
-            if instruction_present && current.is_some() && conversation.active(now) {
+            // CPU output is only a candidate. The selected recognizer must
+            // confirm an initial wake, including a standalone wake phrase.
+            let require_wake = !conversation.active(now);
+            let candidate =
+                prefix.is_some() || (!require_wake && !detection.text.trim().is_empty());
+            if candidate && current.is_some() {
                 let samples = std::mem::take(&mut audio);
                 if let Some(c) = app.try_state::<TranscriptionCoordinator>() {
                     c.voice_correction(
                         samples,
                         current.clone().unwrap_or_default(),
                         cancel_generation,
+                        require_wake,
                     );
                 }
-                // Follow-ups resume only after the command succeeds/clarifies.
-                // The async handler sets resume state below.
                 conversation.reset();
                 session_target = None;
             } else {
@@ -324,6 +318,7 @@ pub fn transcribe_instruction(
     samples: Vec<f32>,
     original: AppIdentity,
     generation: u64,
+    require_wake: bool,
 ) {
     tauri::async_runtime::spawn(async move {
         struct Finished(AppHandle);
@@ -347,6 +342,31 @@ pub fn transcribe_instruction(
         }
         match result {
             Ok(Ok(text)) => {
+                if require_wake {
+                    let Some(rest) = wake_prefix(&text) else {
+                        // The narrow CPU grammar can confuse similar speech.
+                        // This independent ASR confirmation refuses it before
+                        // parser/LLM/clipboard access or session activation.
+                        log::debug!("Wake candidate rejected by selected recognizer");
+                        return;
+                    };
+                    if rest.is_empty() {
+                        if !get_settings(&app).correction_listener_enabled {
+                            return;
+                        }
+                        if let Some(s) = app.try_state::<ListenerResume>() {
+                            if let Ok(mut resume) = s.0.lock() {
+                                *resume = Some(original);
+                            }
+                        }
+                        crate::utils::show_feedback_overlay(
+                            &app,
+                            "Listening for a correction…",
+                            "info",
+                        );
+                        return;
+                    }
+                }
                 super::correction::handle_instruction_guarded(app.clone(), text, generation, true)
                     .await;
                 if rm.was_cancelled_since(generation) {

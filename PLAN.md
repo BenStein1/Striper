@@ -24,9 +24,9 @@ _Last updated October 17, 2026. "Tested" means automated tests on Linux (and Win
 | Verified, transactional, reversible edits (selection read-back, post-verify, undo on mismatch, clipboard restore, stale-focus check) | Done, tested against a simulated field | Needs Windows; read-back depends on each app allowing copy |
 | Persistent memory only when the user says "remember", stored in SQLite with audit log | Done, tested | §0 acceptance test passes in core tests; needs a real restart on Windows |
 | Vocabulary manager UI, import/export, recent corrections, overlay feedback | Done | Lint and build pass; not yet viewed on screen |
-| Wake phrase "correct that" (CPU detector) | Not started | Hotkey is the fallback per M1 |
+| Wake phrase "correct that" (CPU detector) | Implemented, desktop validation pending | Opt-in native Vosk listener; shared capture; selected ASR for instructions; synthetic Linux acoustic probe passed |
 | Windows UI Automation / Word adapter | Not started | Keystroke + clipboard path first |
-| Data migration from Handy's `com.pais.handy` app-data folder | Not started | Copy models/settings by hand for now |
+| Data migration from Handy's `com.pais.handy` app-data folder | Implemented, unit-tested | Fresh installations import settings and completed models without changing Handy or overwriting Striper |
 | Updater signing keys for Striper | Not started | Update checks default off |
 
 ## 0. First acceptance test — Striper must remember its own name

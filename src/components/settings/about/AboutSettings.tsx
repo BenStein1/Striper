@@ -77,6 +77,19 @@ export const AboutSettings: React.FC = () => {
 
       <SettingsGroup title={t("settings.about.acknowledgments.title")}>
         <SettingContainer
+          title={t("settings.about.acknowledgments.vosk.title")}
+          description={t("settings.about.acknowledgments.vosk.description")}
+          grouped={true}
+        >
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => openExternal("https://github.com/alphacep/vosk-api")}
+          >
+            {t("settings.about.acknowledgments.vosk.button")}
+          </Button>
+        </SettingContainer>
+        <SettingContainer
           title={t("settings.about.acknowledgments.handy.title")}
           description={t("settings.about.acknowledgments.handy.description")}
           grouped={true}
