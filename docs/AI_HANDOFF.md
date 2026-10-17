@@ -15,6 +15,8 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 
 - Model setup, the Models catalog, and the downloaded-model footer picker support search and alphabetical model lists. The small featured onboarding recommendations retain curation; matching full-catalog results are visible while searching. Provider model menus are alphabetical too.
 - Parakeet Unified EN 0.6B is the first English model to try on Ben's RTX 4090. The current unified GGUF engine supports GPU execution; Linux/Windows x64 compile Vulkan, not CUDA. Do not repeat the old CPU-only Parakeet description or promise measured speed on either user's hardware.
+- Every catalog model runs through transcribe-cpp, so there is no per-model CPU/GPU split; the footer picker shows the active model's real placement (On GPU · backend / On CPU) from the loaded worker, and a Recommended tag. Codex's uniform per-row "CPU / GPU" label was removed as noise.
+- Plasma 6 Wayland on Ubuntu releases with ydotool 0.1.x: `scripts/linux/setup-plasma-wayland.sh` installs helpers, a udev uaccess rule for /dev/uinput, a `striper-ydotoold` systemd user service (0.1.x must run as the user: fixed /tmp/.ydotool_socket, mode 0600) and kdotool v0.3.0 in /usr/local/bin. kdotool build verified in CI container; the script itself still needs Ben's machine.
 - Hardware menus and detected GPU summaries include the backend. The model picker/Models page report the worker's actual bound CPU/GPU, backend and device, separately from saved preference and detected devices. Refresh follows model lifecycle events and app focus; no GPU execution has been verified on Ben's desktop merely by adding this status.
 
 ## What Striper is

@@ -93,14 +93,14 @@
     "compute": {
       "active": "Loaded engine: {{kind}} · {{backend}} · {{device}}",
       "notLoaded": "No model loaded yet; active hardware will appear after loading.",
-      "capability": "CPU / GPU",
-      "capabilityDescription": "Supports CPU or compatible GPU execution. Acceleration depends on the available backend, driver and hardware.",
+      "runningOnGpu": "On GPU · {{backend}}",
+      "runningOnCpu": "On CPU",
       "preference": "Hardware preference: {{preference}}",
       "detected": "Detected GPUs: {{devices}}",
       "noGpu": "No GPU detected. CPU execution is available.",
       "unavailable": "GPU detection unavailable. Check Hardware Acceleration in Advanced.",
       "checking": "Checking available hardware…",
-      "guidance": "Choose Hardware Acceleration in Advanced. Detected hardware is not confirmation that a model is using it."
+      "guidance": "Every model can run on CPU or GPU; there are no separate CUDA models. Pick CPU, GPU or Auto in Advanced → Hardware Acceleration, then confirm with Loaded engine after the model loads."
     },
     "custom": "مخصص",
     "streaming": "البث",

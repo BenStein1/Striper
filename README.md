@@ -47,7 +47,7 @@ On an NVIDIA desktop, open **Advanced → Hardware Acceleration** and select the
 
 **Whisper Large v3 Turbo** is another useful model to compare on an RTX 4090; this is its catalog name, not “Whisper Medium Turbo.” Use the default Q8_0 download first. Compare the same short dictations for accuracy and delay before choosing a default for Dad's Windows PC; results on the 4090 do not establish performance on his GPU.
 
-Search model names in setup, **Models**, or the footer switcher. Full model lists are alphabetical (the small featured onboarding recommendations keep their curated order); search accepts multiple words such as `whisper turbo` or `parakeet unified`. Provider/AI model menus are also alphabetical and retain their existing type-to-search behavior.
+In the footer model switcher, the active model shows **On GPU · Vulkan** or **On CPU** once it has loaded. Search model names in setup, **Models**, or the footer switcher. Full model lists are alphabetical (the small featured onboarding recommendations keep their curated order); search accepts multiple words such as `whisper turbo` or `parakeet unified`. Provider/AI model menus are also alphabetical and retain their existing type-to-search behavior.
 
 ## Quick Start
 
@@ -213,34 +213,25 @@ On **Plasma Wayland**:
 
 Without a working foreground-window ID, ambient voice correction cannot activate. The explicit correction shortcut remains available, with source-selection readback required by default. If helpers are not yet configured and your login screen offers X11, sign out and select a Plasma X11 session for the initial test, then install `xdotool` there. See [Linux testing](docs/LINUX_TESTING.md) for the compatibility limits.
 
-##### Ubuntu 25.10 / Plasma 6: initial Wayland test setup
+##### Ubuntu 25.10 / Plasma 6: one-time Wayland setup
 
-For the Ubuntu `ydotool` **0.1.8** package, install the matching daemon and build a Plasma 6-compatible foreground helper:
-
-```bash
-sudo apt install wl-clipboard ydotool ydotoold acl libdbus-1-dev &&
-env -u LD_LIBRARY_PATH -u LD_PRELOAD cargo install --git https://github.com/jinliu/kdotool --tag v0.3.0 --locked
-```
-
-For a test in the current login, start the input daemon as your normal user:
+For Ubuntu/Kubuntu releases that ship `ydotool` **0.1.8** (no `dotool` or `kdotool` packages), run the setup script from the clone as your normal user. It needs Rust (`cargo`) to build `kdotool`, and asks for your sudo password:
 
 ```bash
-sudo modprobe uinput &&
-sudo setfacl -m "u:$(id -un):rw" /dev/uinput &&
-ydotoold
+cd ~/Projects/Striper && git pull && scripts/linux/setup-plasma-wayland.sh
 ```
 
-Leave this terminal open. The ACL grants your user access to the virtual-input device; this test setup is temporary and does not create an autostart service. Device recreation/reboot may require applying it again. Version 0.1.8 uses a different socket/CLI setup from modern ydotool, so do not mix in newer daemon flags. Do not start another daemon if one is already serving the desktop.
+It installs `wl-clipboard`, `ydotool` and `ydotoold`, loads `uinput` at boot, grants the logged-in desktop user access to `/dev/uinput` through a udev `uaccess` rule, runs `ydotoold` as a systemd user service (`striper-ydotoold`, started with your Plasma session), and builds `kdotool` v0.3.0 into `/usr/local/bin` so apps started from the launcher find it. It ends by checking that the daemon is up and that `kdotool getactivewindow` answers. Note that any program running as you can inject input once `/dev/uinput` is accessible; that is inherent to ydotool. ydotool 0.1.8's daemon must run as your user (its socket is `/tmp/.ydotool_socket`, mode 0600), so do not start it with `sudo`.
 
-In a second Konsole window, launch Striper from the clone:
+To undo it: `systemctl --user disable --now striper-ydotoold`, then `sudo rm /etc/udev/rules.d/60-striper-uinput.rules /etc/modules-load.d/striper-uinput.conf /usr/local/bin/kdotool`.
+
+Then run Striper from the clone (or install a `.deb` as above):
 
 ```bash
-export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
-cd ~/Projects/Striper &&
-env -u LD_LIBRARY_PATH -u LD_PRELOAD bun run tauri dev
+cd ~/Projects/Striper && env -u LD_LIBRARY_PATH -u LD_PRELOAD bun run tauri dev
 ```
 
-If a terminal has inherited third-party libraries (for example Topaz's Qt libraries), check Plasma with `env -u LD_LIBRARY_PATH -u LD_PRELOAD plasmashell --version`. These per-command overrides do not change the parent shell or the other application's setup. Refresh **Vocabulary → Correction compatibility** and test in Kate. Configure the Plasma dictation shortcut using `striper --toggle-transcription` for an installed package; when running only a development build, use that build's absolute executable path instead (usually `~/Projects/Striper/src-tauri/target/debug/striper`, with `~` expanded to your home directory).
+If a terminal has inherited third-party libraries (for example Topaz's Qt libraries), check Plasma with `env -u LD_LIBRARY_PATH -u LD_PRELOAD plasmashell --version`. Refresh **Vocabulary → Correction compatibility** and test in Kate. Configure the Plasma dictation shortcut using `striper --toggle-transcription` for an installed package; when running only a development build, use that build's absolute executable path instead (usually `~/Projects/Striper/src-tauri/target/debug/striper`, with `~` expanded to your home directory).
 
 **Other Notes:**
 

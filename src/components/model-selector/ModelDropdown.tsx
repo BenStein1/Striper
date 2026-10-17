@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { filterAndSortModels } from "@/lib/utils/modelSearch";
-import { ModelComputeBadge, ModelComputeSummary } from "./ModelComputeInfo";
+import {
+  ActiveComputeBadge,
+  ModelComputeDetails,
+  useAvailableAccelerators,
+} from "./ModelComputeInfo";
 import { useTranslation } from "react-i18next";
 import type { ModelInfo } from "@/bindings";
 import {
@@ -23,6 +27,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
+  const accelerators = useAvailableAccelerators();
   const searchRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const downloadedModels = useMemo(
@@ -73,7 +78,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
           }}
           className="w-full px-3 py-2 text-sm bg-mid-gray/10 border border-mid-gray/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-logo-primary"
         />
-        <ModelComputeSummary />
+        <ModelComputeDetails {...accelerators} />
       </div>
       <div ref={resultsRef} className="min-h-0 overflow-y-auto py-2">
         {visibleModels.length > 0 ? (
@@ -99,20 +104,27 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
                           {t("modelSelector.custom")}
                         </span>
                       )}
+                      {model.is_recommended && (
+                        <span className="ms-1.5 text-[10px] font-medium text-logo-primary/70 uppercase">
+                          {t("onboarding.recommended")}
+                        </span>
+                      )}
                       {model.supports_streaming && (
                         <span className="ms-1.5 text-[10px] font-medium text-logo-primary/70 uppercase">
                           {t("modelSelector.streaming")}
                         </span>
                       )}
                     </div>
-                    <ModelComputeBadge />
                     <div className="text-xs text-text/40 italic pe-4">
                       {getTranslatedModelDescription(model, t)}
                     </div>
                   </div>
                   {currentModelId === model.id && (
-                    <div className="text-xs text-logo-primary">
-                      {t("modelSelector.active")}
+                    <div className="flex flex-col items-end shrink-0 gap-0.5">
+                      <div className="text-xs text-logo-primary">
+                        {t("modelSelector.active")}
+                      </div>
+                      <ActiveComputeBadge available={accelerators.available} />
                     </div>
                   )}
                 </div>

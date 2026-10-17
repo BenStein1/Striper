@@ -4,27 +4,8 @@ import { useTranslation } from "react-i18next";
 import { commands, type AvailableAccelerators } from "@/bindings";
 import { useSettingsStore } from "@/stores/settingsStore";
 
-/** Capability label, deliberately not a claim about the backend currently loaded. */
-export const ModelComputeBadge = () => {
-  const { t } = useTranslation();
-  return (
-    <span
-      className="text-xs text-text/60"
-      title={t("modelSelector.compute.capabilityDescription")}
-    >
-      {t("modelSelector.compute.capability")}
-    </span>
-  );
-};
-
-export const ModelComputeSummary = () => {
-  const { t } = useTranslation();
-  const preference = useSettingsStore(
-    (state) => state.settings?.transcribe_accelerator ?? "auto",
-  );
-  const selectedDevice = useSettingsStore(
-    (state) => state.settings?.transcribe_gpu_device,
-  );
+/** Live accelerator facts, refreshed on model load/unload and window focus. */
+export const useAvailableAccelerators = () => {
   const [available, setAvailable] = useState<AvailableAccelerators | null>(
     null,
   );
@@ -61,6 +42,50 @@ export const ModelComputeSummary = () => {
     };
   }, []);
 
+  return { available, failed };
+};
+
+/** Where the loaded model actually runs; renders nothing until a model is loaded. */
+export const ActiveComputeBadge = ({
+  available,
+}: {
+  available: AvailableAccelerators | null;
+}) => {
+  const { t } = useTranslation();
+  if (!available?.active_backend || available.active_on_gpu === null) {
+    return null;
+  }
+  return (
+    <span
+      className={`text-[10px] font-medium uppercase ${
+        available.active_on_gpu ? "text-logo-primary/80" : "text-text/50"
+      }`}
+      title={available.active_device || available.active_backend}
+    >
+      {available.active_on_gpu
+        ? t("modelSelector.compute.runningOnGpu", {
+            backend: available.active_backend,
+          })
+        : t("modelSelector.compute.runningOnCpu")}
+    </span>
+  );
+};
+
+export const ModelComputeSummary = () => (
+  <ModelComputeDetails {...useAvailableAccelerators()} />
+);
+
+export const ModelComputeDetails = ({
+  available,
+  failed,
+}: ReturnType<typeof useAvailableAccelerators>) => {
+  const { t } = useTranslation();
+  const preference = useSettingsStore(
+    (state) => state.settings?.transcribe_accelerator ?? "auto",
+  );
+  const selectedDevice = useSettingsStore(
+    (state) => state.settings?.transcribe_gpu_device,
+  );
   const preferenceLabel =
     preference === "cpu"
       ? "CPU"
