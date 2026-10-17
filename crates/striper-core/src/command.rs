@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 pub const MAX_OPERATION_TEXT: usize = 2400;
 /// Upper bound on operations in one instruction.
 pub const MAX_OPERATIONS: usize = 4;
+/// Upper bound on paragraph breaks one operation may insert.
+pub const MAX_PARAGRAPH_BREAKS: usize = 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -51,6 +53,13 @@ pub enum EditOperation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         anchor_text: Option<String>,
     },
+    /// Start a new paragraph after each anchor (copied exactly from the
+    /// text). Only whitespace changes, so the wording can never be altered:
+    /// "start a new paragraph after 'see you tomorrow'", "split this into
+    /// paragraphs".
+    InsertParagraphBreaks {
+        after: Vec<String>,
+    },
     /// "Scratch that": remove the most recent dictation.
     DeleteRecentDictation,
     /// Reverse the last assistant edit.
@@ -86,6 +95,7 @@ impl EditOperation {
             EditOperation::ReplaceText { .. } => "replace_text",
             EditOperation::ReplacePunctuation { .. } => "replace_punctuation",
             EditOperation::InsertText { .. } => "insert_text",
+            EditOperation::InsertParagraphBreaks { .. } => "insert_paragraph_breaks",
             EditOperation::DeleteRecentDictation => "delete_recent_dictation",
             EditOperation::UndoLastEdit => "undo_last_edit",
             EditOperation::RememberSpelling { .. } => "remember_spelling",
@@ -103,6 +113,7 @@ impl EditOperation {
             EditOperation::ReplaceText { .. }
                 | EditOperation::ReplacePunctuation { .. }
                 | EditOperation::InsertText { .. }
+                | EditOperation::InsertParagraphBreaks { .. }
                 | EditOperation::DeleteRecentDictation
                 | EditOperation::UndoLastEdit
         )
@@ -195,6 +206,7 @@ pub fn response_json_schema() -> serde_json::Value {
                     op("replace_text", serde_json::json!({"expected_text": text, "replacement_text": text, "occurrence": nullable_int}), &["expected_text", "replacement_text", "occurrence"]),
                     op("replace_punctuation", serde_json::json!({"expected_text": text, "replacement_text": text, "occurrence": nullable_int}), &["expected_text", "replacement_text", "occurrence"]),
                     op("insert_text", serde_json::json!({"text": text, "position": {"type": "string", "enum": ["before", "after", "end", "start"]}, "anchor_text": nullable_text}), &["text", "position", "anchor_text"]),
+                    op("insert_paragraph_breaks", serde_json::json!({"after": {"type": "array", "items": text, "minItems": 1, "maxItems": MAX_PARAGRAPH_BREAKS}}), &["after"]),
                     op("delete_recent_dictation", serde_json::json!({}), &[]),
                     op("undo_last_edit", serde_json::json!({}), &[]),
                     op("remember_spelling", serde_json::json!({"preferred_text": text, "aliases": {"type": "array", "items": text, "maxItems": 8}, "context_words": {"type": "array", "items": text, "maxItems": 12}, "always": {"type": "boolean"}}), &["preferred_text", "aliases", "context_words", "always"]),
@@ -323,6 +335,20 @@ pub fn validate_operation(op: &EditOperation) -> Result<(), CommandError> {
                     None => return Err(CommandError::MissingAnchor),
                 },
                 InsertPosition::End | InsertPosition::Start => {}
+            }
+        }
+        EditOperation::InsertParagraphBreaks { after } => {
+            if after.is_empty() {
+                return Err(CommandError::EmptyField("after"));
+            }
+            if after.len() > MAX_PARAGRAPH_BREAKS {
+                return Err(CommandError::TooManyOperations(after.len()));
+            }
+            for anchor in after {
+                check_text("after", anchor, false)?;
+                if anchor.trim().is_empty() {
+                    return Err(CommandError::EmptyField("after"));
+                }
             }
         }
         EditOperation::RememberSpelling {
@@ -510,7 +536,7 @@ mod tests {
         let ops = schema["properties"]["operations"]["items"]["anyOf"]
             .as_array()
             .unwrap();
-        assert_eq!(ops.len(), 10);
+        assert_eq!(ops.len(), 11);
     }
 
     #[test]

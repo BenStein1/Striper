@@ -275,6 +275,7 @@ struct Patterns {
     follow_up: Regex,
     spelling: Regex,
     delete: Regex,
+    paragraph_after: Regex,
     insert_relative: Regex,
     insert_edge: Regex,
     capitalize: Regex,
@@ -296,6 +297,7 @@ fn patterns() -> &'static Patterns {
             follow_up: re(r"(?:actually|no|sorry|oops)?[\s,]*(?:make|change) (?:that|it) (?:to |into )?(?P<to>.+)|(?:actually|no|sorry)[\s,]+(?:it'?s |it should be |make it )?(?P<to2>.+)"),
             spelling: re(r"(?:i said|i meant|i mean|it'?s|it is|it should be|that should be|should be|that'?s|that is|the word is|it'?s spelled|that'?s spelled|spell(?:ed)? it|spell it as|my (?:first |last |middle |sur)?name is|(?:his|her|their|the) (?:first |last )?name is)(?:[\s,:]+(?P<word>.+))?"),
             delete: re(r"(?:delete|remove|erase|take out|drop) (?:the word |the words )?(?P<what>.+)"),
+            paragraph_after: re(r"(?:(?:start|begin|add|insert|put|make)(?: in)? (?:a )?)?(?:new paragraph|paragraph break) (?:after|following) (?P<anchor>.+)"),
             insert_relative: re(r"(?:add|insert|put|type) (?P<what>.+?) (?P<pos>after|before) (?P<anchor>.+)"),
             insert_edge: re(r"(?:add|insert|put|type) (?P<what>.+?) (?:at the (?P<edge>end|beginning|start)(?: of (?:it|that|the sentence))?|after (?:it|that|the sentence))"),
             capitalize: re(r"(?:capitalize|capitalise|cap) (?P<what>.+)"),
@@ -488,6 +490,12 @@ fn parse_clause(
             return None;
         }
         return spelling_correction(ctx, &word, remember);
+    }
+    if let Some(c) = p.paragraph_after.captures(clause) {
+        let anchor = locate(region, c.name("anchor")?.as_str());
+        return Some(vec![EditOperation::InsertParagraphBreaks {
+            after: vec![anchor],
+        }]);
     }
     if let Some(c) = p.insert_edge.captures(clause) {
         let what = spoken_target(c.name("what")?.as_str());
@@ -792,6 +800,24 @@ mod tests {
                 text: Some("Stephen".into())
             }])
         );
+    }
+
+    #[test]
+    fn new_paragraph_after_a_phrase() {
+        let region = "Thanks for coming. See you tomorrow. Love, Dad";
+        for said in [
+            "start a new paragraph after see you tomorrow",
+            "new paragraph after 'see you tomorrow'",
+            "Insert a paragraph break after see you tomorrow.",
+        ] {
+            assert_eq!(
+                parse_instruction(said, &ctx(region)),
+                Some(vec![EditOperation::InsertParagraphBreaks {
+                    after: vec!["See you tomorrow".into()]
+                }]),
+                "{said}"
+            );
+        }
     }
 
     #[test]

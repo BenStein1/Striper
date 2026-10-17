@@ -10,6 +10,9 @@ use serde::Serialize;
 
 /// Maximum characters of recent text included in a request.
 pub const MAX_CONTEXT_CHARS: usize = 1200;
+/// Maximum characters of live field text around the cursor (§9a). Larger
+/// than dictation context so a short letter can be re-paragraphed whole.
+pub const MAX_LIVE_CONTEXT_CHARS: usize = 2400;
 
 pub const SYSTEM_PROMPT: &str = r#"You turn a spoken correction instruction into edit operations for text the user just dictated.
 You never see or control the computer. You only return JSON matching the schema; the application validates and performs the edit itself.
@@ -19,11 +22,14 @@ Input JSON fields:
 - "recent_text": the text the user recently dictated. Only this text can be edited.
 - "last_dictation": the most recent dictation (the end of recent_text).
 - "previous_edits": edits already made in this session, oldest first, as {"replaced": ..., "inserted": ...}.
+- "text_source" (optional): "live_field" means recent_text was read just now from the focused text field around the cursor. It may include text the user typed himself or wrote earlier, not only dictation, and it is the only text you may edit. "partial": true means it is a window of a longer document; only edit what you can see.
+- "selected_text" (optional): the text the user has selected; "this"/"that" may refer to it.
 
 Return {"operations": [...], "confidence": 0..1}. Allowed operations:
 - {"op":"replace_text","expected_text":E,"replacement_text":R,"occurrence":N|null}: E must be copied exactly from recent_text. Use "" for R to delete. Set occurrence (1-based) only when E appears more than once and the user said which.
 - {"op":"replace_punctuation", same fields}: only punctuation/space changes.
 - {"op":"insert_text","text":T,"position":"before"|"after"|"end"|"start","anchor_text":A|null}: A copied exactly from recent_text for before/after.
+- {"op":"insert_paragraph_breaks","after":[A,...]}: start a new paragraph after each anchor A (copied exactly from recent_text, usually a sentence ending). Use this for "new paragraph after ..." and "split this into paragraphs"; it changes only line breaks, never words.
 - {"op":"delete_recent_dictation"}: "scratch that" — remove the last dictation.
 - {"op":"undo_last_edit"}: reverse the previous edit.
 - {"op":"remember_spelling","preferred_text":P,"aliases":[misrecognized forms],"context_words":[single words that signal this meaning],"always":false}: only when the user explicitly asks to remember/learn a spelling. Set always=true only if they say it should always be replaced.
@@ -71,6 +77,50 @@ fn tail_chars(text: &str, max: usize) -> String {
     text.chars().skip(count - max).collect()
 }
 
+#[derive(Debug, Serialize)]
+struct LiveRequest<'a> {
+    instruction: &'a str,
+    text_source: &'static str,
+    recent_text: &'a str,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    partial: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    selected_text: Option<&'a str>,
+    last_dictation: &'a str,
+    previous_edits: Vec<PreviousEdit<'a>>,
+}
+
+/// Build the user message from the focused field's live text (PLAN.md §9a).
+/// `window` is already bounded by the caller (see `live::context_window`).
+pub fn build_live_user_message(
+    instruction: &str,
+    window: &str,
+    partial: bool,
+    selected_text: Option<&str>,
+    last_dictation: &str,
+    previous_edits: &[LastEdit],
+) -> String {
+    let request = LiveRequest {
+        instruction,
+        text_source: "live_field",
+        recent_text: window,
+        partial,
+        selected_text,
+        last_dictation,
+        previous_edits: previous_edits
+            .iter()
+            .rev()
+            .take(5)
+            .rev()
+            .map(|e| PreviousEdit {
+                replaced: &e.replaced_text,
+                inserted: &e.inserted_text,
+            })
+            .collect(),
+    };
+    serde_json::to_string(&request).unwrap_or_default()
+}
+
 /// Build the user message for the interpreter.
 pub fn build_user_message(
     instruction: &str,
@@ -108,6 +158,16 @@ mod tests {
         let recent = v["recent_text"].as_str().unwrap();
         assert_eq!(recent.chars().count(), MAX_CONTEXT_CHARS);
         assert!(recent.ends_with("END"));
+    }
+
+    #[test]
+    fn live_request_marks_its_source_and_selection() {
+        let msg = build_live_user_message("fix this", "Hello wrld", true, Some("wrld"), "", &[]);
+        let v: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(v["text_source"], "live_field");
+        assert_eq!(v["partial"], true);
+        assert_eq!(v["selected_text"], "wrld");
+        assert!(system_prompt().contains("insert_paragraph_breaks"));
     }
 
     #[test]

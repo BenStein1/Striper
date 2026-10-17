@@ -7,6 +7,24 @@
 
 use unicode_segmentation::UnicodeSegmentation;
 
+/// Length in bytes of the longest common prefix, on a char boundary.
+pub fn common_prefix_len(a: &str, b: &str) -> usize {
+    a.char_indices()
+        .zip(b.chars())
+        .find(|((_, x), y)| x != y)
+        .map_or(a.len().min(b.len()), |((i, _), _)| i)
+}
+
+/// Length in bytes of the longest common suffix, on a char boundary.
+pub fn common_suffix_len(a: &str, b: &str) -> usize {
+    a.chars()
+        .rev()
+        .zip(b.chars().rev())
+        .take_while(|(x, y)| x == y)
+        .map(|(x, _)| x.len_utf8())
+        .sum()
+}
+
 /// Number of caret positions a string occupies.
 pub fn grapheme_len(s: &str) -> usize {
     s.graphemes(true).count()

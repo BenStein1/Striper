@@ -6,6 +6,8 @@
 //! the desktop does not expose the information (e.g. most Wayland
 //! compositors), never an error.
 
+pub mod live_text;
+
 /// Identity of the focused top-level window.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ForegroundWindow {

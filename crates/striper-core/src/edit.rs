@@ -176,6 +176,9 @@ pub fn resolve_operation(region: &str, op: &EditOperation) -> Result<ResolvedEdi
             };
             (at..at, text.clone())
         }
+        EditOperation::InsertParagraphBreaks { after } => {
+            return resolve_paragraph_breaks(region, after);
+        }
         _ => return Err(ResolveError::NotATextEdit),
     };
     let replaced_text = region[range.clone()].to_string();
@@ -192,6 +195,81 @@ pub fn resolve_operation(region: &str, op: &EditOperation) -> Result<ResolvedEdi
         replaced_text,
         inserted_text: replacement,
     })
+}
+
+/// Characters that close a sentence or quotation and stay attached to the
+/// word before a paragraph break ("see you tomorrow" + "." stays together).
+fn is_trailing_closer(c: char) -> bool {
+    matches!(
+        c,
+        '.' | ',' | ';' | ':' | '!' | '?' | '"' | '\'' | ')' | ']' | '\u{201D}' | '\u{2019}'
+    )
+}
+
+/// Insert a paragraph break after each anchor, changing whitespace only.
+fn resolve_paragraph_breaks(
+    region: &str,
+    anchors: &[String],
+) -> Result<ResolvedEdit, ResolveError> {
+    let line = if region.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let brk = line.repeat(2);
+    let mut cuts: Vec<std::ops::Range<usize>> = Vec::new();
+    for anchor in anchors {
+        let found = pick(region, anchor.trim(), None)?;
+        let mut pos = found.end;
+        for c in region[pos..].chars() {
+            if !is_trailing_closer(c) {
+                break;
+            }
+            pos += c.len_utf8();
+        }
+        let ws_end = pos
+            + region[pos..]
+                .char_indices()
+                .find(|(_, c)| !c.is_whitespace())
+                .map_or(region.len() - pos, |(i, _)| i);
+        let gap = &region[pos..ws_end];
+        if gap.matches('\n').count() >= 2 {
+            continue; // Already a paragraph break here.
+        }
+        if !cuts.iter().any(|c| c.start == pos) {
+            cuts.push(pos..ws_end);
+        }
+    }
+    if cuts.is_empty() {
+        return Err(ResolveError::NoChange);
+    }
+    cuts.sort_by_key(|c| c.start);
+    let mut new_text = String::with_capacity(region.len() + cuts.len() * brk.len());
+    let mut last = 0;
+    for cut in &cuts {
+        new_text.push_str(&region[last..cut.start]);
+        new_text.push_str(&brk);
+        last = cut.end;
+    }
+    new_text.push_str(&region[last..]);
+    // Defence in depth: the wording must be untouched.
+    if !same_words(region, &new_text) {
+        return Err(ResolveError::NoChange);
+    }
+    let prefix = crate::text::common_prefix_len(region, &new_text);
+    let suffix = crate::text::common_suffix_len(&region[prefix..], &new_text[prefix..]);
+    Ok(ResolvedEdit {
+        changed: prefix..new_text.len() - suffix,
+        replaced_text: region[prefix..region.len() - suffix].to_string(),
+        inserted_text: new_text[prefix..new_text.len() - suffix].to_string(),
+        new_text,
+    })
+}
+
+/// Whether two texts contain the same words in the same order, ignoring how
+/// they are separated by whitespace (paragraph-only edits).
+pub fn same_words(a: &str, b: &str) -> bool {
+    a.split_whitespace().eq(b.split_whitespace())
 }
 
 /// A minimal keystroke plan turning `current` into `desired`, assuming the
