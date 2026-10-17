@@ -116,7 +116,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
             get_settings(app).correction_listener_enabled && !super::hands_free::is_active(app);
         if rm.cancel_generation() != cancel_generation {
             cancel_generation = rm.cancel_generation();
-            rm.stop_listener_capture();
+            rm.stop_listener_capture_for(generation);
             audio.clear();
             if let Some(d) = detector.as_mut() {
                 d.reset();
@@ -135,7 +135,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
             .try_state::<TranscriptionCoordinator>()
             .is_some_and(|c| c.is_idle());
         if !enabled || !idle {
-            rm.stop_listener_capture();
+            rm.stop_listener_capture_for(generation);
             audio.clear();
             if let Some(d) = detector.as_mut() {
                 d.reset();
@@ -247,7 +247,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
             Ok(frame) => frame,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if last_frame.elapsed() > Duration::from_secs(5) {
-                    rm.stop_listener_capture();
+                    rm.stop_listener_capture_for(generation);
                     return Err("The microphone stopped delivering audio. Check the input device and restart Striper.".into());
                 }
                 continue;

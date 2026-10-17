@@ -1133,10 +1133,26 @@ impl AudioRecordingManager {
 
     /// Stop only the idle consumer. A hotkey recording is never stopped here.
     pub fn stop_listener_capture(&self) {
+        self.stop_listener(None);
+    }
+
+    /// Stop the idle consumer only while it is still the capture that
+    /// `start_listener_capture` returned `generation` for. The wake listener
+    /// and the hands-free session poll this from separate threads; stopping
+    /// unconditionally made each one tear down the other's capture every
+    /// 100 ms, reopening the microphone in a loop.
+    pub fn stop_listener_capture_for(&self, generation: u64) {
+        self.stop_listener(Some(generation));
+    }
+
+    fn stop_listener(&self, generation: Option<u64>) {
         if !self.listener_active.load(Ordering::Acquire) {
             return;
         }
         let _state = self.state.lock().unwrap();
+        if generation.is_some_and(|g| g != self.listener_generation()) {
+            return;
+        }
         if let Some(microphone) = self.recorder.lock().unwrap().as_ref() {
             self.stop_listener_on(microphone);
         }

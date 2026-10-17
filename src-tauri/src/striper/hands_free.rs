@@ -290,7 +290,7 @@ fn segment(app: &AppHandle) -> Result<(), String> {
             if state == SessionState::Off {
                 vad = None;
             }
-            rm.stop_listener_capture();
+            rm.stop_listener_capture_for(capture_generation);
             endpointer.as_mut().map(Endpointer::reset);
             pending.clear();
             while rx.try_recv().is_ok() {}
@@ -348,7 +348,7 @@ fn segment(app: &AppHandle) -> Result<(), String> {
             Ok(f) => f,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if last_frame.elapsed() > Duration::from_secs(5) {
-                    rm.stop_listener_capture();
+                    rm.stop_listener_capture_for(capture_generation);
                     return Err("The microphone stopped delivering audio. Check the input device and start dictation again.".into());
                 }
                 continue;
