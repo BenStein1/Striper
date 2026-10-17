@@ -223,6 +223,16 @@ cd ~/Projects/Striper && git pull && scripts/linux/setup-plasma-wayland.sh
 
 It installs `wl-clipboard`, `ydotool` and `ydotoold`, adds you to the `input` group so Striper's shortcuts can read the keyboard (log out and back in once if it says so), loads `uinput` at boot, grants the logged-in desktop user access to `/dev/uinput` through a udev `uaccess` rule, runs `ydotoold` as a systemd user service (`striper-ydotoold`, started with your Plasma session), and builds `kdotool` v0.3.0 into `/usr/local/bin` so apps started from the launcher find it. It ends by checking that the daemon is up and that `kdotool getactivewindow` answers. Note that any program running as you can inject input once `/dev/uinput` is accessible; that is inherent to ydotool. ydotool 0.1.8's daemon must run as your user (its socket is `/tmp/.ydotool_socket`, mode 0600), so do not start it with `sudo`.
 
+##### Launcher entry for a development checkout
+
+To start your latest development build from the application launcher instead of a terminal, run once:
+
+```bash
+~/Projects/Striper/scripts/linux/install-dev-launcher.sh
+```
+
+This adds **Striper (dev)** to the launcher. Each launch fast-forwards `main` (skipped when the checkout has local changes or is on another branch), runs `bun install` when dependencies changed, and starts `bun run tauri dev` with `LD_LIBRARY_PATH` and `LD_PRELOAD` cleared. Launching it again while it is running raises the existing window. Output goes to `~/.local/state/striper/dev-launch.log`; right-click the entry and choose **Open launch log** to read it.
+
 To undo it: `systemctl --user disable --now striper-ydotoold`, then `sudo rm /etc/udev/rules.d/60-striper-uinput.rules /etc/modules-load.d/striper-uinput.conf /usr/local/bin/kdotool`.
 
 Then run Striper from the clone (or install a `.deb` as above):
