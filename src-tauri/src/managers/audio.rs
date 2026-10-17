@@ -1141,7 +1141,11 @@ impl AudioRecordingManager {
             self.stop_listener_on(microphone);
         }
         if !self.is_recording() && matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
-            self.schedule_lazy_close();
+            if get_settings(&self.app_handle).lazy_stream_close {
+                self.schedule_lazy_close();
+            } else {
+                self.stop_microphone_stream();
+            }
         }
     }
 

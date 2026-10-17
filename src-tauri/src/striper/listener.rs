@@ -79,6 +79,12 @@ fn target(app: &AppHandle) -> Option<AppIdentity> {
     let focused = focused_identity();
     let s = state(app)?;
     let ledger = s.ledger.lock().ok()?;
+    // App-name equality cannot distinguish two documents/windows. Ambient
+    // activation needs an actual window identity, unlike the hotkey fallback.
+    let original_window = ledger.target()?.window_id.as_deref()?;
+    if focused.window_id.as_deref()? != original_window {
+        return None;
+    }
     if ledger.target()?.compare(&focused) != TargetMatch::Same
         || ledger.check_target(&focused, now_ms()).is_err()
     {
@@ -324,6 +330,9 @@ pub fn transcribe_instruction(
         struct Finished(AppHandle);
         impl Drop for Finished {
             fn drop(&mut self) {
+                if let Some(tm) = self.0.try_state::<Arc<TranscriptionManager>>() {
+                    tm.maybe_unload_immediately("voice correction");
+                }
                 if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
                     c.notify_processing_finished();
                 }
