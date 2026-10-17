@@ -13,6 +13,8 @@ import { Button } from "../../ui/Button";
 import { ShortcutInput } from "../ShortcutInput";
 import { PostProcessingSettingsApi } from "../PostProcessingSettingsApi";
 
+import { CorrectionListener } from "./CorrectionListener";
+
 const RECENT_CORRECTIONS = 20;
 
 /** Splits a comma-separated field into trimmed, non-empty words. */
@@ -376,6 +378,8 @@ export const VocabularySettings: React.FC = () => {
           grouped={true}
         />
       </SettingsGroup>
+
+      <CorrectionListener />
 
       {llmEnabled && (
         <SettingsGroup

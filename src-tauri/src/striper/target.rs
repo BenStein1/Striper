@@ -72,6 +72,7 @@ pub struct KeyboardTarget {
     keys: KeySender,
     paste_delay: Duration,
     paste_settle: Duration,
+    expected_target: striper_core::session::AppIdentity,
 }
 
 impl KeyboardTarget {
@@ -83,10 +84,20 @@ impl KeyboardTarget {
         );
         Self {
             app: app.clone(),
+            expected_target: super::focused_identity(),
             keys,
             paste_delay: Duration::from_millis(settings.paste_delay_ms.max(30)),
             paste_settle: Duration::from_millis(settings.paste_delay_after_ms.max(120)),
         }
+    }
+
+    fn check_focus(&self) -> Result<(), String> {
+        if self.expected_target.compare(&super::focused_identity())
+            == striper_core::session::TargetMatch::Different
+        {
+            return Err("Focus changed during the correction; stopped editing.".into());
+        }
+        Ok(())
     }
 
     pub fn settle(&self) -> Duration {
@@ -96,18 +107,22 @@ impl KeyboardTarget {
 
 impl TextTarget for KeyboardTarget {
     fn move_left(&mut self, steps: usize) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::Left, steps)
     }
 
     fn move_right(&mut self, steps: usize) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::Right, steps)
     }
 
     fn select_left(&mut self, steps: usize) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::ShiftLeft, steps)
     }
 
     fn read_selection(&mut self) -> Result<Option<String>, String> {
+        self.check_focus()?;
         // A unique sentinel tells "the app copied" apart from "nothing
         // happened" (no selection support, copy blocked).
         let nanos = std::time::SystemTime::now()
@@ -132,6 +147,7 @@ impl TextTarget for KeyboardTarget {
     }
 
     fn replace_selection(&mut self, text: &str) -> Result<(), String> {
+        self.check_focus()?;
         let settings = crate::settings::get_settings(&self.app);
         if settings.paste_method == PasteMethod::Direct {
             // Typing replaces the selection without touching the clipboard.
@@ -151,14 +167,17 @@ impl TextTarget for KeyboardTarget {
     }
 
     fn delete_selection(&mut self) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::Delete, 1)
     }
 
     fn collapse_right(&mut self) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::Right, 1)
     }
 
     fn undo_once(&mut self) -> Result<(), String> {
+        self.check_focus()?;
         self.keys.send(EditKey::Undo, 1)?;
         std::thread::sleep(self.paste_settle);
         Ok(())

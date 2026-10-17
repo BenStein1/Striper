@@ -12,6 +12,8 @@
 pub mod commands;
 pub mod correction;
 mod keys;
+pub mod listener;
+pub mod listener_install;
 mod target;
 
 use log::{debug, error, info, warn};
@@ -117,6 +119,9 @@ pub fn init(app: &AppHandle) {
     let store = store
         .unwrap_or_else(|| Store::open_in_memory().expect("in-memory SQLite is always available"));
     app.manage(Arc::new(StriperState::new(store)));
+    app.manage(listener::ListenerResume::default());
+    app.manage(listener_install::InstallLock(AtomicBool::new(false)));
+    listener::init(app);
 }
 
 fn state(app: &AppHandle) -> Option<Arc<StriperState>> {

@@ -555,6 +555,9 @@ pub struct AppSettings {
     /// clipboard cannot be read (some Wayland setups).
     #[serde(default = "default_true")]
     pub correction_require_readback: bool,
+    /// Explicit opt-in to local, CPU-only background wake detection.
+    #[serde(default)]
+    pub correction_listener_enabled: bool,
 }
 
 fn default_model() -> String {
@@ -1070,6 +1073,7 @@ pub fn get_default_settings() -> AppSettings {
         correction_provider_id: None,
         correction_model: None,
         correction_require_readback: true,
+        correction_listener_enabled: false,
     }
 }
 

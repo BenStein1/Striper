@@ -1157,7 +1157,7 @@ correction_model?: string | null;
  * Turning this off allows unverified edits on desktops where the
  * clipboard cannot be read (some Wayland setups).
  */
-correction_require_readback?: boolean }
+correction_require_readback?: boolean; correction_listener_enabled?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[] }

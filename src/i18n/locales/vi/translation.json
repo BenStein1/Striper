@@ -636,7 +636,7 @@
     "vocabulary": {
       "correction": {
         "title": "Spoken Corrections",
-        "description": "Fix the text you just dictated by voice. Simple commands are understood on this computer; the AI provider below is only asked when a command is not recognized.",
+        "description": "Correct recent dictation by voice, with an optional shortcut fallback. Learned spellings are applied locally before pasting.",
         "applyLearned": {
           "label": "Apply Learned Spellings",
           "description": "Replace misheard words with the spellings you taught Striper before the text is typed."
@@ -705,6 +705,26 @@
         "empty": "No corrections yet.",
         "change": "\"{{before}}\" → \"{{after}}\"",
         "meta": "{{result}} · {{interpreter}} · {{time}}"
+      },
+      "listener": {
+        "title": "Voice correction",
+        "description": "Say “correct that” to start a correction without another keystroke. The correction shortcut remains available as a fallback.",
+        "enable": "Listen for “correct that”",
+        "privacy": "Keeps the selected microphone open for a local CPU listener. Background audio stays in memory and is never saved or uploaded. Pauses during ordinary dictation.",
+        "instructions": "Dictate normally, release Ctrl+Space, then say “correct that, change Thursday to Friday”. You can pause after “correct that”. Follow up with “actually Saturday”, “undo that”, or “done”. The session ends after 30 seconds without a command or when focus changes. Windows and Linux x64; a known recent dictation target is required.",
+        "install": "Download local listener files (about 70 MB)",
+        "installing": "Downloading and checking listener files…",
+        "installed": "Local listener ready. Turn it on when you want voice correction.",
+        "status": "Listener: {{state}}",
+        "phases": {
+          "off": "off",
+          "loading": "loading local model",
+          "paused": "paused during dictation or processing",
+          "armed": "waiting for “correct that”",
+          "listening": "listening for a correction",
+          "processing": "processing correction",
+          "error": "needs attention"
+        }
       }
     }
   },
@@ -731,7 +751,8 @@
     "open": "Mở",
     "copy": "Sao chép",
     "clear": "Xóa",
-    "noOptionsFound": "Không tìm thấy tùy chọn"
+    "noOptionsFound": "Không tìm thấy tùy chọn",
+    "downloadsInProgress": "{{count}} downloading…"
   },
   "accessibility": {
     "permissionsDescription": "Striper cần quyền truy cập để gõ văn bản đã chuyển đổi.",

@@ -290,9 +290,24 @@ enum VadSlot {
     },
 }
 
+/// A single recorder serves both dictation and idle wake detection. The idle
+/// consumer never accumulates audio and is synchronously preempted by PTT.
+enum MicrophoneSink {
+    Recording(CaptureSink),
+    Listener(AudioFrameCallback),
+}
+impl handy_recorder::Sink for MicrophoneSink {
+    fn process_chunk(&mut self, chunk: handy_recorder::AudioChunk<'_>) {
+        match self {
+            Self::Recording(sink) => handy_recorder::Sink::process_chunk(sink, chunk),
+            Self::Listener(callback) => callback(&chunk.samples[..chunk.valid_frames]),
+        }
+    }
+}
+
 /// An open microphone: the stream is running whether or not it is recording.
 struct OpenMicrophone {
-    recorder: Recorder<CaptureSink>,
+    recorder: Recorder<MicrophoneSink>,
     /// Set when this recorder fails. Its own flag, so a failure handler that
     /// runs late can't mark a replacement recorder failed.
     failed: Arc<AtomicBool>,
@@ -486,6 +501,8 @@ pub struct AudioRecordingManager {
     /// retry re-enumerates. The system-default case is never cached — the
     /// recorder resolves the current default itself.
     cached_device: Arc<Mutex<Option<(String, String)>>>,
+    listener_active: AtomicBool,
+    listener_generation: AtomicU64,
 }
 
 impl AudioRecordingManager {
@@ -526,6 +543,8 @@ impl AudioRecordingManager {
             recording_active: Arc::new(AtomicBool::new(false)),
             capture_generation: Arc::new(AtomicU64::new(0)),
             cached_device: Arc::new(Mutex::new(None)),
+            listener_active: AtomicBool::new(false),
+            listener_generation: AtomicU64::new(0),
         };
 
         // Always-on?  Open immediately.
@@ -908,6 +927,8 @@ impl AudioRecordingManager {
     /// Closes a microphone, first discarding any recording on it (its
     /// detector comes back).
     fn close_microphone(&self, microphone: OpenMicrophone) {
+        self.listener_active.store(false, Ordering::Release);
+        self.listener_generation.fetch_add(1, Ordering::AcqRel);
         let mut is_recording = self.is_recording.lock().unwrap();
         if *is_recording {
             let _ = self.collect_recording(&microphone);
@@ -939,7 +960,10 @@ impl AudioRecordingManager {
                         stopped.dropped_frames
                     );
                 }
-                let captured = stopped.sink.finish();
+                let MicrophoneSink::Recording(sink) = stopped.sink else {
+                    return Vec::new();
+                };
+                let captured = sink.finish();
                 self.return_vad(captured.vad);
                 captured.samples
             }
@@ -1036,7 +1060,8 @@ impl AudioRecordingManager {
                 self.return_vad(sink.into_vad());
                 return Err(anyhow::anyhow!("Recorder not available"));
             };
-            match microphone.recorder.start(sink) {
+            self.stop_listener_on(microphone);
+            match microphone.recorder.start(MicrophoneSink::Recording(sink)) {
                 Ok(()) => {
                     let generation = self.capture_generation.fetch_add(1, Ordering::AcqRel) + 1;
                     *self.is_recording.lock().unwrap() = true;
@@ -1053,7 +1078,9 @@ impl AudioRecordingManager {
                     });
                 }
                 Err(StartError { error, sink }) => {
-                    self.return_vad(sink.into_vad());
+                    if let MicrophoneSink::Recording(sink) = sink {
+                        self.return_vad(sink.into_vad());
+                    }
                     if reopened || error.kind() == ErrorKind::AlreadyRecording {
                         return Err(anyhow::Error::new(error).context("Failed to start recorder"));
                     }
@@ -1062,6 +1089,55 @@ impl AudioRecordingManager {
                     reopened = true;
                 }
             }
+        }
+    }
+
+    /// Feed idle audio to a bounded, nonblocking listener callback. Holding
+    /// `state` prevents an overlapping PTT start from opening a second sink.
+    pub fn start_listener_capture(&self, callback: AudioFrameCallback) -> Result<u64, String> {
+        let state = self.state.lock().map_err(|e| e.to_string())?;
+        if !matches!(*state, RecordingState::Idle) {
+            return Err("Recording is active".into());
+        }
+        self.close_generation.fetch_add(1, Ordering::SeqCst);
+        self.start_microphone_stream().map_err(|e| e.to_string())?;
+        let recorder = self.recorder.lock().map_err(|e| e.to_string())?;
+        let microphone = recorder.as_ref().ok_or("Microphone unavailable")?;
+        if !self.listener_active.load(Ordering::Acquire) {
+            microphone
+                .recorder
+                .start(MicrophoneSink::Listener(callback))
+                .map_err(|e| e.error.to_string())?;
+            self.listener_active.store(true, Ordering::Release);
+        }
+        Ok(self.listener_generation.load(Ordering::Acquire))
+    }
+
+    fn stop_listener_on(&self, microphone: &OpenMicrophone) {
+        if self.listener_active.swap(false, Ordering::AcqRel) {
+            self.listener_generation.fetch_add(1, Ordering::AcqRel);
+            if let Err(e) = microphone.recorder.stop() {
+                microphone.failed.store(true, Ordering::Release);
+                warn!("Failed to stop idle listener: {e}");
+            }
+        }
+    }
+
+    pub fn listener_generation(&self) -> u64 {
+        self.listener_generation.load(Ordering::Acquire)
+    }
+
+    /// Stop only the idle consumer. A hotkey recording is never stopped here.
+    pub fn stop_listener_capture(&self) {
+        if !self.listener_active.load(Ordering::Acquire) {
+            return;
+        }
+        let _state = self.state.lock().unwrap();
+        if let Some(microphone) = self.recorder.lock().unwrap().as_ref() {
+            self.stop_listener_on(microphone);
+        }
+        if !self.is_recording() && matches!(*self.mode.lock().unwrap(), MicrophoneMode::OnDemand) {
+            self.schedule_lazy_close();
         }
     }
 

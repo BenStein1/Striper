@@ -2,6 +2,7 @@ use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
 use crate::settings::ShortcutActivation;
 use log::{debug, error, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use std::thread;
@@ -170,8 +171,15 @@ enum Effect {
 /// Commands processed sequentially by the coordinator thread.
 enum Command {
     Input(InputEvent),
-    Cancel { recording_was_active: bool },
+    Cancel {
+        recording_was_active: bool,
+    },
     ProcessingFinished,
+    VoiceCorrection {
+        samples: Vec<f32>,
+        target: striper_core::session::AppIdentity,
+        generation: u64,
+    },
 }
 
 /// Decide whether a key-up should be deferred (so auto-repeat can cancel it)
@@ -532,6 +540,7 @@ impl CoordinatorState {
 /// returned [`Effect`]s.
 pub struct TranscriptionCoordinator {
     tx: Sender<Command>,
+    idle: Arc<AtomicBool>,
 }
 
 /// Bindings that record speech through the shared capture/ASR pipeline. The
@@ -543,6 +552,8 @@ pub fn is_transcribe_binding(id: &str) -> bool {
 impl TranscriptionCoordinator {
     pub fn new(app: AppHandle) -> Self {
         let (tx, rx) = mpsc::channel();
+        let idle = Arc::new(AtomicBool::new(true));
+        let idle_thread = Arc::clone(&idle);
 
         thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -556,6 +567,7 @@ impl TranscriptionCoordinator {
                                 if let Some(effect) = state.on_grace_expired() {
                                     run_effect(&app, &mut state, effect);
                                 }
+                                idle_thread.store(state.stage == Stage::Idle, Ordering::Release);
                                 continue;
                             }
                             Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -567,6 +579,7 @@ impl TranscriptionCoordinator {
                         }
                     };
 
+                    idle_thread.store(false, Ordering::Release);
                     match cmd {
                         Command::Input(input) => {
                             if let Some(effect) = state.on_input(input, Instant::now()) {
@@ -576,12 +589,30 @@ impl TranscriptionCoordinator {
                         Command::Cancel {
                             recording_was_active,
                         } => state.on_cancel(recording_was_active),
+                        Command::VoiceCorrection {
+                            samples,
+                            target,
+                            generation,
+                        } => {
+                            let rm = app.state::<Arc<AudioRecordingManager>>();
+                            if state.stage == Stage::Idle && !rm.was_cancelled_since(generation) {
+                                state.stage = Stage::Processing;
+                                rm.stop_listener_capture();
+                                crate::striper::listener::transcribe_instruction(
+                                    app.clone(),
+                                    samples,
+                                    target,
+                                    generation,
+                                );
+                            }
+                        }
                         Command::ProcessingFinished => {
                             if let Some(effect) = state.on_processing_finished() {
                                 run_effect(&app, &mut state, effect);
                             }
                         }
                     }
+                    idle_thread.store(state.stage == Stage::Idle, Ordering::Release);
                 }
                 debug!("Transcription coordinator exited");
             }));
@@ -590,7 +621,26 @@ impl TranscriptionCoordinator {
             }
         });
 
-        Self { tx }
+        Self { tx, idle }
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.idle.load(Ordering::Acquire)
+    }
+
+    /// Unlike a hotkey toggle, a wake command is discarded while busy: it
+    /// must never be queued to edit a future dictation.
+    pub fn voice_correction(
+        &self,
+        samples: Vec<f32>,
+        target: striper_core::session::AppIdentity,
+        generation: u64,
+    ) {
+        let _ = self.tx.send(Command::VoiceCorrection {
+            samples,
+            target,
+            generation,
+        });
     }
 
     /// Send a keyboard input event for a transcribe binding. `hold_threshold`

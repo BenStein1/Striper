@@ -45,6 +45,7 @@ jobs:
           workspaces: |
             ./crates/striper-core -> target
             ./crates/striper-platform -> target
+            ./crates/striper-listener -> target
 
       - name: Run striper-core tests
         if: steps.crate.outputs.present == 'true'
@@ -53,3 +54,7 @@ jobs:
       - name: Run striper-platform tests
         if: steps.crate.outputs.present == 'true'
         run: cargo test --manifest-path crates/striper-platform/Cargo.toml
+
+      - name: Run CPU listener tests
+        if: steps.crate.outputs.present == 'true'
+        run: cargo test --manifest-path crates/striper-listener/Cargo.toml

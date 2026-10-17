@@ -207,6 +207,26 @@ async fn interpret_with_llm(
 
 /// Handle one transcribed correction instruction end to end.
 pub async fn handle_instruction(app: AppHandle, instruction: String) {
+    let generation = app
+        .state::<Arc<crate::managers::audio::AudioRecordingManager>>()
+        .cancel_generation();
+    handle_instruction_guarded(app, instruction, generation, false).await;
+}
+
+pub async fn handle_instruction_guarded(
+    app: AppHandle,
+    instruction: String,
+    generation: u64,
+    listener: bool,
+) {
+    let cancelled = |app: &AppHandle| {
+        app.state::<Arc<crate::managers::audio::AudioRecordingManager>>()
+            .was_cancelled_since(generation)
+            || (listener && !crate::settings::get_settings(app).correction_listener_enabled)
+    };
+    if cancelled(&app) {
+        return;
+    }
     let Some(state) = app.try_state::<Arc<StriperState>>().map(|s| Arc::clone(&s)) else {
         return;
     };
@@ -262,6 +282,24 @@ pub async fn handle_instruction(app: AppHandle, instruction: String) {
         Err(_) => return,
     };
 
+    // Reject a stale/foreign target before sending recent text to a provider.
+    // Keyboard-only memory commands still work without any dictated region.
+    if !region.is_empty() {
+        let current = focused_identity();
+        let error = state
+            .ledger
+            .lock()
+            .ok()
+            .and_then(|l| l.check_target(&current, now_ms()).err());
+        if let Some(error) = error {
+            end_phase(&state, true);
+            finish(
+                &app,
+                simple_result(&instruction, "local", false, error.to_string()),
+            );
+            return;
+        }
+    }
     let parse_ctx = ParseContext {
         region_text: &region,
         last_edit,
@@ -286,6 +324,10 @@ pub async fn handle_instruction(app: AppHandle, instruction: String) {
             }
         },
     };
+    if cancelled(&app) {
+        end_phase(&state, true);
+        return;
+    }
     debug!("Correction operations ({interpreter}): {ops:?}");
 
     let needs_keys = ops.iter().any(EditOperation::edits_text);
@@ -295,6 +337,15 @@ pub async fn handle_instruction(app: AppHandle, instruction: String) {
     let run = tauri::async_runtime::spawn_blocking(move || {
         let app = app_for_run;
         let state = state_for_run;
+        if app
+            .state::<Arc<crate::managers::audio::AudioRecordingManager>>()
+            .was_cancelled_since(generation)
+            || (listener && !crate::settings::get_settings(&app).correction_listener_enabled)
+        {
+            return vec![StepOutcome::Failed {
+                message: "Correction cancelled; nothing was changed.".into(),
+            }];
+        }
         let settings = crate::settings::get_settings(&app);
         if needs_keys && !wait_for_modifier_release() {
             return vec![StepOutcome::Failed {
