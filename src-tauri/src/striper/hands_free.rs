@@ -484,7 +484,10 @@ fn insert(app: &AppHandle, s: &HandsFreeState, raw: &str, joined: String, genera
         false,
         target.app_id.as_deref(),
     ));
-    let text = processed.final_text;
+    // The text actually before the caret beats the session's own memory of
+    // what it typed, which a correction or a click elsewhere invalidates.
+    let text = super::join_with_preceding(app, &target, &processed.final_text)
+        .unwrap_or(processed.final_text);
     if text.is_empty() || s.generation.load(Ordering::SeqCst) != generation {
         return;
     }

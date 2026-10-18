@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use striper_core::session::{
-    AppIdentity, CorrectionSession, DictationCommit, Ledger, LedgerConfig,
+    AppIdentity, CorrectionSession, DictationCommit, Ledger, LedgerConfig, TargetMatch,
 };
 use striper_core::store::Store;
 use striper_core::vocabulary::{apply_vocabulary, ApplyContext, VocabularyEntry};
@@ -215,6 +215,36 @@ pub fn inserted_text(settings: &AppSettings, final_text: &str) -> String {
     } else {
         final_text.to_string()
     }
+}
+
+/// Space a new dictation from the text it lands after, as Dragon does:
+/// "park." followed by "Then I went" becomes " Then I went". The text before
+/// the caret comes from the focused field when the platform can read it
+/// (Windows UI Automation); otherwise from what Striper itself last inserted
+/// into the same window, including corrections made to it since. Returns
+/// `None` when neither is known, so the caller keeps its own spacing.
+pub fn join_with_preceding(app: &AppHandle, target: &AppIdentity, text: &str) -> Option<String> {
+    let next = text.trim_start_matches(' ');
+    if next.is_empty() {
+        return None;
+    }
+    if let Ok(field) = striper_platform::live_text::read_focused_text(256) {
+        if let Some(caret) = field.selection.filter(|r| r.is_empty()) {
+            if let Some(before) = field.text.get(..caret.start) {
+                return Some(striper_core::dictation::join_utterance(before, next));
+            }
+        }
+    }
+    let state = state(app)?;
+    let ledger = state.ledger.lock().ok()?;
+    // Only a positively identified window; an unknown one may be anywhere.
+    if ledger.target()?.compare(target) != TargetMatch::Same
+        || ledger.check_target(target, now_ms()).is_err()
+    {
+        return None;
+    }
+    let before = ledger.region_text()?;
+    Some(striper_core::dictation::join_utterance(&before, next))
 }
 
 /// Whether text inserted with these settings can be edited afterwards:

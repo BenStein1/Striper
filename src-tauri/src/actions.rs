@@ -763,7 +763,12 @@ impl ShortcutAction for TranscribeAction {
                             } else {
                                 let ah_clone = ah.clone();
                                 let paste_time = Instant::now();
-                                let final_text = processed.final_text;
+                                let final_text = crate::striper::join_with_preceding(
+                                    &ah,
+                                    &target,
+                                    &processed.final_text,
+                                )
+                                .unwrap_or(processed.final_text);
                                 let rm_for_paste = Arc::clone(&rm);
                                 ah.run_on_main_thread(move || {
                                     if rm_for_paste.was_cancelled_since(cancel_generation) {
