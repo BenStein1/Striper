@@ -343,10 +343,24 @@ pub async fn test_correction_ai(
         .iter()
         .any(striper_core::command::EditOperation::edits_text)
     {
-        return Err(
-            "The provider replied, but did not propose a text revision. Check the selected model."
-                .into(),
-        );
+        // Say what the model actually did, so a wrong model or a model that
+        // keeps asking questions can be told apart.
+        let answer = match ops.first() {
+            Some(striper_core::command::EditOperation::Clarify { question }) => {
+                format!("asked \u{201C}{question}\u{201D}")
+            }
+            _ => format!(
+                "answered with {}",
+                ops.iter()
+                    .map(striper_core::command::EditOperation::name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        };
+        log::warn!("AI correction test: {model} {answer} instead of revising the sample");
+        return Err(format!(
+            "The provider replied, but {model} {answer} instead of revising the sample sentence."
+        ));
     }
     let mut revised = "I would be delighted to accompany you to lunch tomorrow.".to_string();
     for op in &ops {
