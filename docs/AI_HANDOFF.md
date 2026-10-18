@@ -9,7 +9,7 @@ Read [PLAN.md](../PLAN.md) first; it is the spec, and its "Implementation status
 - Installer packaging and full Nix builds are manual. Do not launch repeated builds while iterating. Main Branch Build defaults to Linux and offers Windows/both when explicitly requested.
 - Use local core/platform/listener tests and frontend checks for iteration, then batch a testable set of changes. See [LINUX_TESTING.md](LINUX_TESTING.md).
 - Vocabulary now includes a read-only compatibility panel and a copyable diagnostic report. It reports helper detection separately from working device/compositor permissions.
-- KDE idle focus checks use one minimal query at most four times per second. Every kdotool query is bounded to 250 ms; edit-time focus checks stay uncached and fail when a previously known window becomes unobservable.
+- Idle CPU (2026-10-18, Ben saw ~13% at idle): the wake listener now keeps the mic closed (phase `standby`) unless a dictation from the last 10 minutes with a known window exists (`Ledger::is_live`), reads settings every 250 ms instead of per audio frame, and probes focus (kdotool on Wayland, at most 4/s, bounded to 250 ms) only while there is speech, an open conversation or a pending resume, never during silence. Edit-time focus checks stay uncached and fail when a previously known window becomes unobservable. Dev builds optimize the per-frame audio crates (`[profile.dev.package.*]` in `src-tauri/Cargo.toml`). Real idle CPU still needs measuring on Ben's machine.
 
 ## Model picker and compute visibility
 

@@ -10,6 +10,34 @@ default-run = "striper"
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.
 
+# Dev builds (`bun run tauri dev`, the "Striper (dev)" launcher) are otherwise
+# unoptimized, and the crates that touch every microphone frame (capture,
+# resampling, VAD) or poll for hotkeys cost several times more CPU that way
+# while the app sits idle. Optimizing just these keeps incremental rebuilds of
+# Striper itself fast. transcribe-cpp builds its native core as Release
+# regardless, so it is deliberately not listed (changing its profile would
+# force a full native rebuild).
+[profile.dev.package.handy-recorder]
+opt-level = 3
+[profile.dev.package.handy-cpal]
+opt-level = 3
+[profile.dev.package.handy-keys]
+opt-level = 3
+[profile.dev.package.rubato]
+opt-level = 3
+[profile.dev.package.realfft]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3
+[profile.dev.package.earshot]
+opt-level = 3
+[profile.dev.package.dasp_sample]
+opt-level = 3
+[profile.dev.package.num-complex]
+opt-level = 3
+[profile.dev.package.serde_json]
+opt-level = 3
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

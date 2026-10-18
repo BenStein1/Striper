@@ -313,6 +313,14 @@ impl Ledger {
         self.region.as_ref().map(|r| &r.target)
     }
 
+    /// Whether an unexpired region exists at `now_ms`, whatever has focus.
+    /// Cheap enough to poll; background listeners stand down without one.
+    pub fn is_live(&self, now_ms: u64) -> bool {
+        self.region
+            .as_ref()
+            .is_some_and(|r| now_ms.saturating_sub(r.updated_at_ms) <= self.config.expiry_ms)
+    }
+
     pub fn history(&self) -> &[AppliedEdit] {
         &self.history
     }
@@ -960,6 +968,10 @@ mod tests {
             ledger.check_target(&notepad(), 1_000 + 11 * 60 * 1000),
             Err(SessionError::Expired)
         );
+        assert!(ledger.is_live(1_000 + 10 * 60 * 1000));
+        assert!(!ledger.is_live(1_000 + 11 * 60 * 1000));
+        ledger.invalidate();
+        assert!(!ledger.is_live(2_000));
     }
 
     #[test]

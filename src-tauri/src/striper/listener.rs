@@ -17,6 +17,8 @@ use striper_listener::{wake_prefix, Conversation, Detector};
 use tauri::{AppHandle, Emitter, Manager};
 
 const MAX_AUDIO: usize = 20 * 16_000;
+const SETTINGS_REFRESH: Duration = Duration::from_millis(250);
+const FOCUS_REFRESH: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Default, Serialize, Type)]
 pub struct ListenerStatus {
@@ -73,9 +75,25 @@ pub fn init(app: &AppHandle) {
     });
 }
 
+/// Whether there is a recent dictation with a known window that a wake
+/// phrase could correct. Cheap (no focus probe), so it gates the microphone:
+/// without one, the listener keeps the mic closed and decodes nothing.
+fn armable(app: &AppHandle) -> bool {
+    state(app).is_some_and(|s| {
+        s.ledger.lock().is_ok_and(|ledger| {
+            ledger.is_live(now_ms()) && ledger.target().is_some_and(|t| t.window_id.is_some())
+        })
+    })
+}
+
 /// Only wake against a known, recent dictation in the focused window. Unknown
 /// Wayland focus uses the explicit shortcut rather than ambient activation.
 fn target(app: &AppHandle) -> Option<AppIdentity> {
+    // Probing focus can spawn a helper (kdotool on Wayland); skip it when
+    // nothing could match anyway.
+    if !armable(app) {
+        return None;
+    }
     let focused = super::focused_window_token();
     let s = state(app)?;
     let ledger = s.ledger.lock().ok()?;
@@ -109,11 +127,18 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut cancel_generation = rm.cancel_generation();
     let mut last_focus_probe: Option<Instant> = None;
     let mut cached_target: Option<AppIdentity> = None;
+    // Reading settings deserializes the whole store; once per audio frame
+    // was a measurable share of idle CPU, so refresh it on a timer.
+    let mut setting_enabled = false;
+    let mut setting_read: Option<Instant> = None;
     loop {
+        if setting_read.is_none_or(|at| at.elapsed() >= SETTINGS_REFRESH) {
+            setting_enabled = get_settings(app).correction_listener_enabled;
+            setting_read = Some(Instant::now());
+        }
         // A hands-free session owns the microphone and hears "correct that"
         // itself; the wake listener stands down meanwhile.
-        let enabled =
-            get_settings(app).correction_listener_enabled && !super::hands_free::is_active(app);
+        let enabled = setting_enabled && !super::hands_free::is_active(app);
         if rm.cancel_generation() != cancel_generation {
             cancel_generation = rm.cancel_generation();
             rm.stop_listener_capture_for(generation);
@@ -134,7 +159,10 @@ fn run(app: &AppHandle) -> Result<(), String> {
         let idle = app
             .try_state::<TranscriptionCoordinator>()
             .is_some_and(|c| c.is_idle());
-        if !enabled || !idle {
+        // With no recent dictation there is nothing to correct: release the
+        // microphone instead of decoding silence for hours.
+        let armable = enabled && idle && armable(app);
+        if !armable {
             rm.stop_listener_capture_for(generation);
             audio.clear();
             if let Some(d) = detector.as_mut() {
@@ -152,7 +180,11 @@ fn run(app: &AppHandle) -> Result<(), String> {
             session_target = None;
             utterance_woke = false;
             while rx.try_recv().is_ok() {}
-            let next = if enabled { "paused" } else { "off" };
+            let next = match (enabled, idle) {
+                (false, _) => "off",
+                (true, false) => "paused",
+                (true, true) => "standby",
+            };
             if phase != next {
                 report(app, next, None);
                 phase = next.into();
@@ -216,24 +248,6 @@ fn run(app: &AppHandle) -> Result<(), String> {
             while rx.try_recv().is_ok() {}
         }
         let now = clock.elapsed().as_millis() as u64;
-        // This only gates acoustic candidates. Before editing, the async
-        // handler and each input operation perform fresh focus checks.
-        if last_focus_probe.is_none_or(|at| at.elapsed() >= Duration::from_millis(250)) {
-            cached_target = target(app);
-            last_focus_probe = Some(Instant::now());
-        }
-        let current = cached_target.clone();
-        if session_target.as_ref().is_some_and(|t| {
-            current
-                .as_ref()
-                .is_none_or(|c| t.compare(c) != TargetMatch::Same)
-        }) {
-            conversation.reset();
-            session_target = None;
-            utterance_woke = false;
-            audio.clear();
-            detector.as_mut().expect("loaded above").reset();
-        }
         let next = if conversation.active(now) || utterance_woke {
             "listening"
         } else {
@@ -272,6 +286,39 @@ fn run(app: &AppHandle) -> Result<(), String> {
         }
         audio.extend_from_slice(&frame);
         let detection = detector.as_mut().expect("loaded above").feed(&frame)?;
+        // Focus only matters once there is speech, an open conversation or a
+        // pending resume. Probing during silence spawned a focus helper four
+        // times a second on Wayland for as long as the listener was on.
+        let resume_pending = app
+            .try_state::<ListenerResume>()
+            .is_some_and(|s| s.0.lock().is_ok_and(|r| r.is_some()));
+        let needs_focus = !detection.text.is_empty()
+            || utterance_woke
+            || session_target.is_some()
+            || conversation.active(now)
+            || resume_pending;
+        // This only gates acoustic candidates. Before editing, the async
+        // handler and each input operation perform fresh focus checks.
+        if !needs_focus {
+            cached_target = None;
+            last_focus_probe = None;
+        } else if last_focus_probe.is_none_or(|at| at.elapsed() >= FOCUS_REFRESH) {
+            cached_target = target(app);
+            last_focus_probe = Some(Instant::now());
+        }
+        let current = cached_target.clone();
+        if session_target.as_ref().is_some_and(|t| {
+            current
+                .as_ref()
+                .is_none_or(|c| t.compare(c) != TargetMatch::Same)
+        }) {
+            conversation.reset();
+            session_target = None;
+            utterance_woke = false;
+            audio.clear();
+            detector.as_mut().expect("loaded above").reset();
+            continue;
+        }
         // Preserve two seconds of pre-roll while idle, rather than letting
         // silence consume the bounded instruction buffer.
         if detection.text.is_empty() && audio.len() > 32_000 {

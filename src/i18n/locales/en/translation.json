@@ -744,7 +744,7 @@
         "title": "Voice correction",
         "description": "Say “correct that” to start a correction without another keystroke. The correction shortcut remains available as a fallback.",
         "enable": "Listen for “correct that”",
-        "privacy": "Keeps the selected microphone open for a local CPU listener. Background audio stays in memory and is never saved or uploaded. Pauses during ordinary dictation.",
+        "privacy": "Opens the selected microphone for a local CPU listener for up to 10 minutes after each dictation, then closes it. Background audio stays in memory and is never saved or uploaded. Pauses during ordinary dictation.",
         "instructions": "Dictate normally, release Ctrl+Space, then say “correct that, change Thursday to Friday”. You can pause after “correct that”. Follow up with “actually Saturday”, “undo that”, or “done”. The session ends after 30 seconds without a command or when focus changes. Windows and Linux x64; a known recent dictation target is required.",
         "install": "Download local listener files (about 55 MB)",
         "installing": "Downloading and checking listener files…",
@@ -755,6 +755,7 @@
           "loading": "loading local model",
           "paused": "paused during dictation or processing",
           "armed": "waiting for “correct that”",
+          "standby": "microphone closed until your next dictation",
           "listening": "listening for a correction",
           "processing": "processing correction",
           "error": "needs attention"
