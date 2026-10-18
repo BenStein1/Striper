@@ -421,6 +421,29 @@ pub fn instruction_requests_memory(instruction: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Strict structured output writes keys in schema order. If "op" is not
+    /// first, the model must commit to a field such as `expected_text` before
+    /// naming the operation, and in practice only operations whose other
+    /// fields sort after "op" (forget_spelling, clarify, ...) stay reachable.
+    #[test]
+    fn schema_names_the_operation_first() {
+        let schema = response_json_schema();
+        let variants = schema["properties"]["operations"]["items"]["anyOf"]
+            .as_array()
+            .unwrap();
+        for variant in variants {
+            let props = variant["properties"].as_object().unwrap();
+            assert_eq!(
+                props.keys().next().map(String::as_str),
+                Some("op"),
+                "{variant}"
+            );
+            assert_eq!(variant["required"][0], "op");
+        }
+        let top: Vec<_> = schema["properties"].as_object().unwrap().keys().collect();
+        assert_eq!(top, ["operations", "confidence"]);
+    }
+
     #[test]
     fn parses_a_valid_replace() {
         let r = parse_command_response(
