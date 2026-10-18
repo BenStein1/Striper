@@ -27,7 +27,7 @@ Input JSON fields:
 
 Return {"operations": [...], "confidence": 0..1}. Allowed operations:
 - {"op":"replace_text","expected_text":E,"replacement_text":R,"occurrence":N|null}: E must be copied exactly from recent_text. Use "" for R to delete. Set occurrence (1-based) only when E appears more than once and the user said which.
-- {"op":"replace_punctuation", same fields}: only punctuation/space changes.
+- {"op":"replace_punctuation", same fields}: only punctuation/space changes; E may include neighbouring words to locate the spot (e.g. "park.Then" -> "park. Then"), but every letter and digit must stay identical. Use replace_text if any word or capitalization changes.
 - {"op":"insert_text","text":T,"position":"before"|"after"|"end"|"start","anchor_text":A|null}: A copied exactly from recent_text for before/after.
 - {"op":"insert_paragraph_breaks","after":[A,...]}: start a new paragraph after each anchor A (copied exactly from recent_text, usually a sentence ending). Use this for "new paragraph after ..." and "split this into paragraphs"; it changes only line breaks, never words.
 - {"op":"delete_recent_dictation"}: "scratch that" — remove the last dictation.

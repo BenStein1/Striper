@@ -40,7 +40,8 @@ pub enum EditOperation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         occurrence: Option<usize>,
     },
-    /// Same as `replace_text`, restricted to punctuation and whitespace.
+    /// Same as `replace_text`, but only punctuation and whitespace may change;
+    /// the words in the span must stay exactly the same.
     ReplacePunctuation {
         expected_text: String,
         replacement_text: String,
@@ -291,8 +292,16 @@ fn check_text(field: &'static str, s: &str, allow_empty: bool) -> Result<(), Com
     Ok(())
 }
 
-fn is_punctuation_or_space(s: &str) -> bool {
-    s.chars().all(|c| !c.is_alphanumeric())
+/// Whether `replacement` differs from `expected` only in punctuation and
+/// spacing. Surrounding words may be included to locate the change
+/// ("park.Then" -> "park. Then"), but must come through unchanged.
+fn only_punctuation_differs(expected: &str, replacement: &str) -> bool {
+    let words = |s: &str| {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect::<String>()
+    };
+    words(expected) == words(replacement)
 }
 
 pub fn validate_operation(op: &EditOperation) -> Result<(), CommandError> {
@@ -315,8 +324,7 @@ pub fn validate_operation(op: &EditOperation) -> Result<(), CommandError> {
         } => {
             check_text("expected_text", expected_text, false)?;
             check_text("replacement_text", replacement_text, true)?;
-            if !is_punctuation_or_space(expected_text) || !is_punctuation_or_space(replacement_text)
-            {
+            if !only_punctuation_differs(expected_text, replacement_text) {
                 return Err(CommandError::NotPunctuation);
             }
             if *occurrence == Some(0) {
@@ -533,6 +541,17 @@ mod tests {
             r#"{"operations":[{"op":"replace_punctuation","expected_text":"?","replacement_text":"Friday"}]}"#,
         );
         assert_eq!(e, Err(CommandError::NotPunctuation));
+        // Words may anchor the change as long as they stay the same.
+        assert!(parse_command_response(
+            r#"{"operations":[{"op":"replace_punctuation","expected_text":"park.Then","replacement_text":"park. Then"}]}"#,
+        )
+        .is_ok());
+        assert_eq!(
+            parse_command_response(
+                r#"{"operations":[{"op":"replace_punctuation","expected_text":"park.Then","replacement_text":"park. then"}]}"#,
+            ),
+            Err(CommandError::NotPunctuation)
+        );
         assert!(parse_command_response(
             r#"{"operations":[{"op":"replace_punctuation","expected_text":"?","replacement_text":".  "}]}"#,
         )
