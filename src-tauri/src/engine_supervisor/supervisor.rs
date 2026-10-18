@@ -1137,11 +1137,6 @@ impl Worker {
             command.arg0(arg0);
         }
         command.arg(WORKER_FLAG);
-        if crate::LISTENER_BLAS_THREADS_LIMITED.load(Ordering::Relaxed) {
-            // That limit is for the wake listener only; transcription keeps
-            // OpenBLAS's normal threading.
-            command.env_remove("OPENBLAS_NUM_THREADS");
-        }
         if cpu_only {
             command.arg(CPU_ONLY_FLAG);
         }

@@ -63,24 +63,6 @@ pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u
 /// and whenever debug mode is toggled (see `shortcut::change_debug_mode_setting`).
 pub static WEBVIEW_LOG_STREAMING: AtomicBool = AtomicBool::new(false);
 
-/// Set when [`limit_listener_blas_threads`] set `OPENBLAS_NUM_THREADS`, so
-/// the transcription worker can be spawned without it.
-pub static LISTENER_BLAS_THREADS_LIMITED: AtomicBool = AtomicBool::new(false);
-
-/// The wake listener's libvosk carries a statically linked, threaded OpenBLAS
-/// that starts one worker per CPU. Fed a small frame every few tens of
-/// milliseconds, those workers never get to sleep and spin between calls,
-/// which kept a 32-thread desktop at ~13% CPU with the listener idle. Its
-/// matrices are tiny, so one thread loses nothing. OpenBLAS reads this when
-/// the library loads, so it must be set before any thread starts. A value the
-/// user set is kept.
-pub fn limit_listener_blas_threads() {
-    if std::env::var_os("OPENBLAS_NUM_THREADS").is_none() {
-        std::env::set_var("OPENBLAS_NUM_THREADS", "1");
-        LISTENER_BLAS_THREADS_LIMITED.store(true, Ordering::Relaxed);
-    }
-}
-
 fn level_filter_from_u8(value: u8) -> log::LevelFilter {
     match value {
         0 => log::LevelFilter::Off,
