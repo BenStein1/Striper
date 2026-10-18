@@ -135,6 +135,10 @@ pub fn toggle(app: &AppHandle) {
         Err(_) => return,
     };
     s.generation.fetch_add(1, Ordering::SeqCst);
+    // Starting or ending a session releases the wake listener: while
+    // listening the session hears "correct that" itself, and ending it means
+    // the user is done, so the microphone closes.
+    super::listener::disarm(app);
     set_error(app, None);
     if to == SessionState::Listening {
         if let Some(tm) = app.try_state::<Arc<TranscriptionManager>>() {
@@ -155,6 +159,7 @@ fn end_with_error(app: &AppHandle, error: String) {
         }
         s.generation.fetch_add(1, Ordering::SeqCst);
     }
+    super::listener::disarm(app);
     if let Some(rm) = app.try_state::<Arc<AudioRecordingManager>>() {
         rm.stop_listener_capture();
     }

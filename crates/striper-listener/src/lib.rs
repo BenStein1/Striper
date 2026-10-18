@@ -4,6 +4,9 @@ use libloading::Library;
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
 use std::path::Path;
 
+mod gate;
+pub use gate::{frames_for, holds_mic, Arming, Gate, Hold, PreRoll, SpeechGate, ARM_MS};
+
 /// A deliberately exact prefix. Quoted prose and phrases in the middle of a
 /// sentence must not activate the editor. PTT audio never enters this module.
 pub fn wake_prefix(text: &str) -> Option<&str> {
@@ -67,6 +70,8 @@ pub struct Detector {
     partial: Json,
     result: Json,
     reset_fn: Reset,
+    /// PCM16-scaled copy of the last frame, reused so feeding allocates nothing.
+    scratch: Vec<f32>,
     _library: Library,
 }
 impl Detector {
@@ -135,6 +140,7 @@ impl Detector {
                 partial,
                 result,
                 reset_fn,
+                scratch: Vec::new(),
                 _library: library,
             })
         }
@@ -144,33 +150,41 @@ impl Detector {
             return Err("Invalid listener audio frame".into());
         }
         // Vosk's float API takes signed PCM16 magnitudes, not normalized f32.
-        let pcm: Vec<f32> = samples
-            .iter()
-            .map(|s| s.clamp(-1.0, 1.0) * 32767.0)
-            .collect();
-        unsafe {
-            let accepted = (self.accept)(self.recognizer, pcm.as_ptr(), pcm.len() as c_int);
-            if accepted < 0 {
-                return Err("Wake detector failed".into());
-            }
-            let endpoint = accepted != 0;
-            let ptr = if endpoint {
-                (self.result)(self.recognizer)
-            } else {
-                (self.partial)(self.recognizer)
-            };
-            if ptr.is_null() {
-                return Err("Wake detector returned no result".into());
-            }
-            // Borrowed JSON belongs to Vosk and is copied before the next call.
-            let json: serde_json::Value = serde_json::from_slice(CStr::from_ptr(ptr).to_bytes())
-                .map_err(|e| e.to_string())?;
-            let text = json[if endpoint { "text" } else { "partial" }]
-                .as_str()
-                .unwrap_or("")
-                .to_owned();
-            Ok(Detection { text, endpoint })
+        self.scratch.clear();
+        self.scratch
+            .extend(samples.iter().map(|s| s.clamp(-1.0, 1.0) * 32767.0));
+        // SAFETY: the recognizer is live for &mut self; the buffer outlives
+        // the call and its length fits c_int (checked above).
+        let accepted = unsafe {
+            (self.accept)(
+                self.recognizer,
+                self.scratch.as_ptr(),
+                self.scratch.len() as c_int,
+            )
+        };
+        if accepted < 0 {
+            return Err("Wake detector failed".into());
         }
+        if accepted != 0 {
+            return self.end_utterance();
+        }
+        // SAFETY: as above; the JSON is copied before the next Vosk call.
+        let text = unsafe { json_field((self.partial)(self.recognizer), "partial")? };
+        Ok(Detection {
+            text,
+            endpoint: false,
+        })
+    }
+    /// End the current utterance now instead of waiting for Vosk's own
+    /// endpoint (the speech gate closed). Decoding restarts on the next
+    /// frame with the feature pipeline kept. Empty if nothing was decoded.
+    pub fn end_utterance(&mut self) -> Result<Detection, String> {
+        // SAFETY: the recognizer is live for &mut self.
+        let text = unsafe { json_field((self.result)(self.recognizer), "text")? };
+        Ok(Detection {
+            text,
+            endpoint: true,
+        })
     }
     pub fn reset(&mut self) {
         unsafe {
@@ -178,6 +192,21 @@ impl Detector {
         }
     }
 }
+/// One string field of a JSON result borrowed from Vosk. A missing field
+/// (e.g. a partial result while nothing is being decoded) reads as empty.
+///
+/// # Safety
+/// `ptr` is null or a NUL-terminated string owned by Vosk, valid until the
+/// next call on the same recognizer.
+unsafe fn json_field(ptr: *const c_char, field: &str) -> Result<String, String> {
+    if ptr.is_null() {
+        return Err("Wake detector returned no result".into());
+    }
+    let json: serde_json::Value =
+        serde_json::from_slice(CStr::from_ptr(ptr).to_bytes()).map_err(|e| e.to_string())?;
+    Ok(json[field].as_str().unwrap_or("").to_owned())
+}
+
 impl Drop for Detector {
     fn drop(&mut self) {
         unsafe {
@@ -190,6 +219,23 @@ impl Drop for Detector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn vosk_json_fields_read_as_text() {
+        let partial = c"{\n  \"partial\" : \"correct that\"\n}";
+        // SAFETY: NUL-terminated literals.
+        unsafe {
+            assert_eq!(
+                json_field(partial.as_ptr(), "partial").unwrap(),
+                "correct that"
+            );
+            // A partial result between utterances has only "text".
+            assert_eq!(
+                json_field(c"{\"text\": \"\"}".as_ptr(), "partial").unwrap(),
+                ""
+            );
+            assert!(json_field(std::ptr::null(), "text").is_err());
+        }
+    }
     #[test]
     fn exact_command_prefix_only() {
         assert_eq!(

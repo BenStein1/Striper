@@ -8,3 +8,7 @@ publish = false
 [dependencies]
 libloading = "0.8"
 serde_json = "1"
+
+[dev-dependencies]
+# Same VAD as the app's Earshot backend, for the gated wake test.
+earshot = "1.2.2"

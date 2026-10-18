@@ -126,7 +126,7 @@ pub fn init(app: &AppHandle) {
     let store = store
         .unwrap_or_else(|| Store::open_in_memory().expect("in-memory SQLite is always available"));
     app.manage(Arc::new(StriperState::new(store)));
-    app.manage(listener::ListenerResume::default());
+    app.manage(listener::ListenerArm::default());
     app.manage(listener_install::InstallLock(AtomicBool::new(false)));
     listener::init(app);
     hands_free::init(app);
@@ -271,6 +271,11 @@ pub fn record_commit(
     let settings = crate::settings::get_settings(app);
     let typed = inserted_text(&settings, final_text);
     record_commit_exact(app, raw_text, &typed, target, inserted);
+    // Push-to-talk only: hands-free sessions call record_commit_exact
+    // directly and hear "correct that" themselves.
+    if inserted {
+        listener::after_dictation(app);
+    }
 }
 
 /// Like [`record_commit`], for text inserted exactly as given (the
@@ -310,6 +315,7 @@ pub fn record_commit_exact(
     if let Ok(mut session) = state.session.lock() {
         *session = None;
     };
+    listener::end_conversation(app);
 }
 
 /// Wait (briefly) until the user lets go of modifier keys, so synthetic
