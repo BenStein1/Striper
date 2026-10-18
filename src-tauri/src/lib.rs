@@ -1182,8 +1182,6 @@ pub fn run(cli_args: CliArgs) {
     #[cfg(target_os = "macos")]
     apply_startup_activation_policy(&mut app, headless_mode);
 
-    // `app` is only used by the macOS arm.
-    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
     app.run(|app, event| match &event {
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {
@@ -1201,6 +1199,13 @@ pub fn run(cli_args: CliArgs) {
                 tray::recreate_tray_icon(app);
             }
             show_main_window(app);
+        }
+        // Quitting mid-recording must not leave system audio muted by
+        // "mute while recording".
+        tauri::RunEvent::Exit => {
+            if let Some(rm) = app.try_state::<Arc<AudioRecordingManager>>() {
+                rm.remove_mute();
+            }
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the
         // worker process, which exits by itself as soon as this process's end

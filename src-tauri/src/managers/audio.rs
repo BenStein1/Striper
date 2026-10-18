@@ -750,7 +750,12 @@ impl AudioRecordingManager {
     /// Applies mute if mute_while_recording is enabled and stream is open.
     /// Snapshots the system's prior mute state first so `remove_mute` can
     /// restore it instead of unconditionally unmuting.
-    pub fn apply_mute(&self) {
+    ///
+    /// `generation` is the recording's readiness generation. It is checked
+    /// under the mute lock: every stop and cancel invalidates it before calling
+    /// `remove_mute`, so a mute arriving late from the readiness thread can
+    /// never land after the unmute and strand system audio muted.
+    pub fn apply_mute(&self, generation: u64) {
         let settings = get_settings(&self.app_handle);
         if !settings.mute_while_recording {
             return;
@@ -763,6 +768,10 @@ impl AudioRecordingManager {
         // apply would overwrite prev_muted with our own forced-muted state and
         // strand audio muted on stop.
         if mute_guard.did_mute {
+            return;
+        }
+        if !self.is_recording_readiness_current(generation) {
+            debug!("Skipping mute: the recording already ended");
             return;
         }
         if *is_open {
@@ -1274,6 +1283,9 @@ impl AudioRecordingManager {
 
     pub fn stop_recording(&self, binding_id: &str, cancel_generation: u64) -> Option<Vec<f32>> {
         self.invalidate_recording_readiness();
+        // Callers normally unmute earlier (before the stop chime); this makes
+        // sure no stop path leaves the system muted.
+        self.remove_mute();
         let mut state = self.state.lock().unwrap();
 
         match *state {
@@ -1357,6 +1369,10 @@ impl AudioRecordingManager {
     pub fn cancel_recording(&self) {
         self.invalidate_recording_readiness();
         self.cancel_generation.fetch_add(1, Ordering::AcqRel);
+        // A cancel must unmute right away. Before, only closing the stream
+        // restored audio, so in always-on or lazy-close mode (or whenever the
+        // stream stayed open) a cancelled recording left the system muted.
+        self.remove_mute();
         let mut state = self.state.lock().unwrap();
 
         match *state {
