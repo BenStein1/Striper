@@ -33,6 +33,10 @@ fn main() {
         std::process::exit(striper_app_lib::engine_supervisor::run_worker());
     }
 
+    // After the worker check, so only the app process (where the wake
+    // listener's Vosk runs) gets this; see `limit_listener_blas_threads`.
+    striper_app_lib::limit_listener_blas_threads();
+
     let cli_args = CliArgs::parse();
     striper_app_lib::run(cli_args)
 }
